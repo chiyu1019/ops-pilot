@@ -414,3 +414,52 @@ netstat -ano | findstr :8004  # Monitor MCP
 author： chief
 
 MIT License
+
+## 🧪 测试与评测
+
+```bash
+# 单元测试（无需 Milvus / API Key，纯逻辑）
+make test          # 或 .venv\Scripts\python -m pytest tests/
+
+# 集成测试（需要 Milvus 已启动；未启动时自动跳过）
+.venv\Scripts\python -m pytest tests/ -m "" 
+
+# RAG 检索准确率评测（需要 Milvus + 已上传文档 + 有效 API Key）
+python scripts/eval_rag.py                          # 默认 top_k=3
+python scripts/eval_rag.py --sweep-topk 1,2,3,5,8   # TopK 参数扫描对比
+python scripts/eval_rag.py --min-accuracy 0.85      # 低于 85% 以非零码退出
+```
+
+## 🐳 Docker 一键部署
+
+```bash
+# 1. 配置环境变量（参考 .env.example，填入 DASHSCOPE_API_KEY）
+copy .env.example .env
+
+# 2. 一键启动全栈（Milvus + 2×MCP + FastAPI）
+docker compose up -d --build
+
+# 3. 访问
+# Web 界面: http://localhost:9900
+# API 文档: http://localhost:9900/docs
+
+# 停止
+docker compose down
+```
+
+> 注意：
+> - `docker compose up` 与 `docker compose -f vector-database.yml up` 不要同时运行
+> - Milvus 单机版需要约 4GB+ 内存，低配云主机需评估
+> - 容器内 MCP 服务通过 `MCP_HOST` / `MCP_PORT` 环境变量监听
+
+## 🔐 安全说明
+
+- `.env` 已加入 `.gitignore`，禁止提交；API Key 只写在本地 `.env`
+- 首次克隆后执行 `copy .env.example .env` 并填写真实值
+- 若曾误提交过密钥，请立即在云控制台轮换该 Key
+
+## 📌 当前状态说明（面试透明性）
+
+- **对话 / RAG**：真实实现（Milvus + DashScope embedding + LangChain Agent + 多轮记忆）
+- **AIOps 诊断**：Plan-Execute-Replan 真实编排；CLS 日志与监控 MCP 当前返回模拟数据，可替换为真实 API（见 `mcp_servers/README.md`）；Prometheus 告警查询为真实 HTTP 调用
+- **会话记忆**：使用 MemorySaver（进程内存），重启后清空；生产化建议替换为 Redis / Postgres checkpointer

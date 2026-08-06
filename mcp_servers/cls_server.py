@@ -467,4 +467,8 @@ def search_log(
 
 
 if __name__ == "__main__":
-    mcp.run(transport="streamable-http", host="127.0.0.1", port=8003, path="/mcp")
+    import os
+
+    host = os.environ.get("MCP_HOST", "127.0.0.1")
+    port = int(os.environ.get("MCP_PORT", "8003"))
+    mcp.run(transport="streamable-http", host=host, port=port, path="/mcp")

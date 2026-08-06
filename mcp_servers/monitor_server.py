@@ -431,5 +431,9 @@ def query_memory_metrics(
 
 
 if __name__ == "__main__":
-    # 使用 streamable-http 模式，运行在 8004 端口
-    mcp.run(transport="streamable-http", host="127.0.0.1", port=8004, path="/mcp")
+    import os
+
+    # 使用 streamable-http 模式，默认运行在 8004 端口
+    host = os.environ.get("MCP_HOST", "127.0.0.1")
+    port = int(os.environ.get("MCP_PORT", "8004"))
+    mcp.run(transport="streamable-http", host=host, port=port, path="/mcp")

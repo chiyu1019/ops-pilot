@@ -4,6 +4,8 @@
 支持真正的流式输出和更好的模型适配。
 """
 
+import json
+
 from typing import Annotated, Any, AsyncGenerator, Dict, Sequence
 
 from langchain.agents import create_agent
@@ -293,6 +295,42 @@ class RagAgentService:
             ):
                 node_name = metadata.get('langgraph_node', 'unknown') if isinstance(metadata, dict) else 'unknown'
                 message_type = type(token).__name__
+
+                # 透出工具调用事件：AI 发起工具调用（start）与工具返回结果（end）
+                if message_type in ("AIMessage", "AIMessageChunk"):
+                    tool_call_chunks = getattr(token, "tool_call_chunks", None)
+                    if tool_call_chunks:
+                        for tc in tool_call_chunks:
+                            tool_name = tc.get("name") or ""
+                            if not tool_name:
+                                continue
+                            yield {
+                                "type": "tool_call",
+                                "data": {
+                                    "tool": tool_name,
+                                    "status": "start",
+                                    "input": (tc.get("args") or "")[:500],
+                                },
+                                "node": node_name,
+                            }
+
+                if message_type in ("ToolMessage", "ToolMessageChunk"):
+                    tool_name = getattr(token, "name", "") or "unknown"
+                    output = getattr(token, "content", "")
+                    if isinstance(output, list):
+                        try:
+                            output = json.dumps(output, ensure_ascii=False)
+                        except Exception:
+                            output = str(output)
+                    yield {
+                        "type": "tool_call",
+                        "data": {
+                            "tool": tool_name,
+                            "status": "end",
+                            "output": str(output)[:2000],
+                        },
+                        "node": node_name,
+                    }
 
                 if message_type in ("AIMessage", "AIMessageChunk"):
                     content_blocks = getattr(token, 'content_blocks', None)

@@ -1,0 +1,16 @@
+{
+  "description": "RAG 检索评测集：基于 aiops-docs 知识库编写，expected_files 为答案所在文档",
+  "questions": [
+    { "question": "HighCPUUsage 告警的触发条件是什么？", "expected_files": ["cpu_high_usage.md"] },
+    { "question": "CPU 使用率过高可能由哪些原因导致？", "expected_files": ["cpu_high_usage.md"] },
+    { "question": "CPU 告警的排查步骤是什么？", "expected_files": ["cpu_high_usage.md"] },
+    { "question": "内存使用率超过多少会被判定为内存压力？", "expected_files": ["memory_high_usage.md"] },
+    { "question": "内存告警的常见根因有哪些？", "expected_files": ["memory_high_usage.md"] },
+    { "question": "磁盘使用率告警应该按什么步骤排查？", "expected_files": ["disk_high_usage.md"] },
+    { "question": "如何确认磁盘 IO 是否成为瓶颈？", "expected_files": ["disk_high_usage.md"] },
+    { "question": "服务不可用告警的排查流程是什么？", "expected_files": ["service_unavailable.md"] },
+    { "question": "服务无响应时首先要做什么？", "expected_files": ["service_unavailable.md"] },
+    { "question": "系统响应缓慢时应该使用哪些工具定位？", "expected_files": ["slow_response.md"] },
+    { "question": "慢响应问题如何结合日志与监控定位根因？", "expected_files": ["slow_response.md"] }
+  ]
+}

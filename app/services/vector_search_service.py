@@ -6,7 +6,7 @@ from loguru import logger
 from pymilvus import Collection
 
 from app.core.milvus_client import milvus_manager
-from app.services.vector_embedding_service import vector_embedding_service
+from app.services.vector_embedding_service import get_embedding_service
 
 
 class SearchResult:
@@ -59,7 +59,7 @@ class VectorSearchService:
             logger.info(f"开始搜索相似文档, 查询: {query}, topK: {top_k}")
 
             # 1. 将查询文本向量化
-            query_vector = vector_embedding_service.embed_query(query)
+            query_vector = get_embedding_service().embed_query(query)
             logger.debug(f"查询向量生成成功, 维度: {len(query_vector)}")
 
             # 2. 获取 collection

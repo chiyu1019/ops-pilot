@@ -121,9 +121,18 @@ class DashScopeEmbeddings(Embeddings):
             raise RuntimeError(f"查询嵌入失败: {e}") from e
 
 
-# 全局单例
-vector_embedding_service = DashScopeEmbeddings(
-    api_key=config.dashscope_api_key,
-    model=config.dashscope_embedding_model,
-    dimensions=1024
-)
+# 全局单例（惰性初始化：首次使用时才创建，
+# 避免缺少有效 API Key 时应用在导入阶段直接失败）
+_embedding_service: "DashScopeEmbeddings | None" = None
+
+
+def get_embedding_service() -> "DashScopeEmbeddings":
+    """获取全局 Embedding 服务（惰性创建，缺 Key 时在此处报错更清晰）。"""
+    global _embedding_service
+    if _embedding_service is None:
+        _embedding_service = DashScopeEmbeddings(
+            api_key=config.dashscope_api_key,
+            model=config.dashscope_embedding_model,
+            dimensions=1024,
+        )
+    return _embedding_service

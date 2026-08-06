@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+
+# 运行数据
+logs/
+uploads/
+volumes/
+*.log
+
+# 环境与密钥
+.env
+.env.*
+!.env.example
+
+# 工具缓存
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.git/
+.gitignore
+Dockerfile
+docker-compose.yml
+start-windows.bat
+stop-windows.bat
+Makefile

@@ -8,7 +8,7 @@ echo ====================================
 echo.
 
 REM 检查 uv 是否安装（可选，如果没有会使用 pip）
-echo [1/6] 检查包管理器...
+echo [1/8] 检查包管理器...
 where uv >nul 2>&1
 if errorlevel 1 (
     echo [信息] uv 未安装，将使用传统 pip 方式
@@ -21,7 +21,7 @@ if errorlevel 1 (
 echo.
 
 REM 确保 Python 版本正确
-echo [2/6] 配置 Python 版本...
+echo [2/8] 配置 Python 版本...
 if exist .python-version (
     set /p PYTHON_VERSION=<.python-version
     echo [信息] 当前配置版本: !PYTHON_VERSION!
@@ -40,7 +40,7 @@ if exist .python-version (
 echo.
 
 REM 创建或同步虚拟环境
-echo [3/6] 创建/同步虚拟环境...
+echo [3/8] 创建/同步虚拟环境...
 if exist .venv\Scripts\python.exe (
     echo [信息] 虚拟环境已存在，检查更新...
     
@@ -101,7 +101,7 @@ REM 设置 Python 命令
 set PYTHON_CMD=.venv\Scripts\python.exe
 
 REM 启动 Docker Compose
-echo [4/6] 启动 Milvus 向量数据库...
+echo [4/8] 启动 Milvus 向量数据库...
 docker ps --format "{{.Names}}" | findstr "milvus-standalone" >nul 2>&1
 if not errorlevel 1 (
     echo [信息] Milvus 容器已在运行
@@ -119,14 +119,14 @@ echo [成功] Milvus 数据库就绪
 echo.
 
 REM 启动 CLS MCP 服务
-echo [5/6] 启动 CLS MCP 服务...
+echo [5/8] 启动 CLS MCP 服务...
 start "CLS MCP Server" /min %PYTHON_CMD% mcp_servers/cls_server.py
 timeout /t 2 /nobreak >nul
 echo [成功] CLS MCP 服务已启动
 echo.
 
 REM 启动 Monitor MCP 服务
-echo [6/6] 启动 Monitor MCP 服务...
+echo [6/8] 启动 Monitor MCP 服务...
 start "Monitor MCP Server" /min %PYTHON_CMD% mcp_servers/monitor_server.py
 timeout /t 2 /nobreak >nul
 echo [成功] Monitor MCP 服务已启动

@@ -8,7 +8,7 @@ from loguru import logger
 
 from app.config import config
 from app.core.milvus_client import milvus_manager
-from app.services.vector_embedding_service import vector_embedding_service
+from app.services.vector_embedding_service import get_embedding_service
 
 
 # 统一使用 biz collection
@@ -40,7 +40,7 @@ class VectorStoreManager:
             # 创建 LangChain Milvus VectorStore
             # 使用 biz collection，字段映射：text_field -> content, vector_field -> vector
             self.vector_store = Milvus(
-                embedding_function=vector_embedding_service,
+                embedding_function=get_embedding_service(),
                 collection_name=self.collection_name,
                 connection_args=connection_args,
                 auto_id=False,  # 使用自定义 id
@@ -56,6 +56,10 @@ class VectorStoreManager:
                 f"collection: {self.collection_name}"
             )
 
+        except ValueError as e:
+            # 缺少有效 API Key：应用仍可启动，向量检索在使用时给出明确报错
+            logger.warning(f"Embedding 服务不可用，向量检索暂不可用: {e}")
+            self.vector_store = None
         except Exception as e:
             logger.error(f"VectorStore 初始化失败: {e}")
             raise
@@ -80,7 +84,7 @@ class VectorStoreManager:
 
             # LangChain Milvus 的 add_documents 会自动调用 embedding_function
             # 并进行批量处理，性能更好
-            result_ids = self.vector_store.add_documents(documents, ids=ids)
+            result_ids = self.get_vector_store().add_documents(documents, ids=ids)
 
             elapsed = time.time() - start_time
             logger.info(
@@ -126,7 +130,14 @@ class VectorStoreManager:
 
         Returns:
             Milvus: VectorStore 实例
+
+        Raises:
+            RuntimeError: 向量存储不可用（例如未配置有效的 DASHSCOPE_API_KEY）
         """
+        if self.vector_store is None:
+            raise RuntimeError(
+                "向量存储不可用：请检查 DASHSCOPE_API_KEY 是否配置且有效（用于文本向量化）"
+            )
         return self.vector_store
 
     def similarity_search(self, query: str, k: int = 3) -> List[Document]:
@@ -141,7 +152,7 @@ class VectorStoreManager:
             List[Document]: 相关文档列表
         """
         try:
-            docs = self.vector_store.similarity_search(query, k=k)
+            docs = self.get_vector_store().similarity_search(query, k=k)
             logger.debug(f"相似度搜索完成: query='{query}', 结果数={len(docs)}")
             return docs
         except Exception as e:

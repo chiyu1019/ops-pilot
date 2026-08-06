@@ -1,0 +1,138 @@
+# ============================================================
+# SuperBizAgent 全栈一键编排（Milvus + 2×MCP + FastAPI 应用）
+# 启动：docker compose up -d --build
+# 注意：不要与 `docker compose -f vector-database.yml up` 同时运行
+# 环境变量从同目录 .env 读取（参考 .env.example）
+# ============================================================
+services:
+  etcd:
+    container_name: milvus-etcd
+    image: quay.io/coreos/etcd:v3.5.18
+    environment:
+      - ETCD_AUTO_COMPACTION_MODE=revision
+      - ETCD_AUTO_COMPACTION_RETENTION=1000
+      - ETCD_QUOTA_BACKEND_BYTES=4294967296
+      - ETCD_SNAPSHOT_COUNT=50000
+    volumes:
+      - ./volumes/etcd:/etcd
+    command: etcd -advertise-client-urls=http://etcd:2379 -listen-client-urls http://0.0.0.0:2379 --data-dir /etcd
+    healthcheck:
+      test: ["CMD", "etcdctl", "endpoint", "health"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    restart: unless-stopped
+
+  minio:
+    container_name: milvus-minio
+    image: minio/minio:RELEASE.2023-03-20T20-16-18Z
+    environment:
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+    ports:
+      - "9001:9001"
+      - "9000:9000"
+    volumes:
+      - ./volumes/minio:/minio_data
+    command: minio server /minio_data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    restart: unless-stopped
+
+  standalone:
+    container_name: milvus-standalone
+    image: milvusdb/milvus:v2.5.10
+    command: ["milvus", "run", "standalone"]
+    security_opt:
+      - seccomp:unconfined
+    environment:
+      ETCD_ENDPOINTS: etcd:2379
+      MINIO_ADDRESS: minio:9000
+    volumes:
+      - ./volumes/milvus:/var/lib/milvus
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
+      interval: 30s
+      start_period: 90s
+      timeout: 20s
+      retries: 3
+    ports:
+      - "19530:19530"
+      - "9091:9091"
+    depends_on:
+      - etcd
+      - minio
+    restart: unless-stopped
+
+  attu:
+    container_name: milvus-attu
+    image: zilliz/attu:v2.5
+    ports:
+      - "8000:3000"
+    environment:
+      MILVUS_URL: standalone:19530
+    depends_on:
+      - standalone
+    restart: unless-stopped
+
+  mcp-cls:
+    build: .
+    image: superbizagent:latest
+    command: python mcp_servers/cls_server.py
+    environment:
+      MCP_HOST: 0.0.0.0
+      MCP_PORT: "8003"
+    ports:
+      - "8003:8003"
+    restart: unless-stopped
+
+  mcp-monitor:
+    build: .
+    image: superbizagent:latest
+    command: python mcp_servers/monitor_server.py
+    environment:
+      MCP_HOST: 0.0.0.0
+      MCP_PORT: "8004"
+    ports:
+      - "8004:8004"
+    restart: unless-stopped
+
+  app:
+    build: .
+    image: superbizagent:latest
+    depends_on:
+      standalone:
+        condition: service_healthy
+      mcp-cls:
+        condition: service_started
+      mcp-monitor:
+        condition: service_started
+    environment:
+      # DashScope（.env 中配置 DASHSCOPE_API_KEY）
+      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:-}
+      DASHSCOPE_API_BASE: ${DASHSCOPE_API_BASE:-https://dashscope.aliyuncs.com/compatible-mode/v1}
+      DASHSCOPE_MODEL: ${DASHSCOPE_MODEL:-qwen-max}
+      DASHSCOPE_EMBEDDING_MODEL: ${DASHSCOPE_EMBEDDING_MODEL:-text-embedding-v4}
+      # Milvus
+      MILVUS_HOST: milvus-standalone
+      MILVUS_PORT: "19530"
+      MILVUS_TIMEOUT: "15000"
+      # RAG
+      RAG_TOP_K: ${RAG_TOP_K:-3}
+      CHUNK_MAX_SIZE: ${CHUNK_MAX_SIZE:-800}
+      CHUNK_OVERLAP: ${CHUNK_OVERLAP:-100}
+      # MCP（容器网络内服务名）
+      MCP_CLS_URL: http://mcp-cls:8003/mcp
+      MCP_MONITOR_URL: http://mcp-monitor:8004/mcp
+      # Prometheus：宿主机上的 Prometheus 可用 host.docker.internal
+      PROMETHEUS_BASE_URL: ${PROMETHEUS_BASE_URL:-http://host.docker.internal:9090}
+    ports:
+      - "9900:9900"
+    restart: unless-stopped
+
+networks:
+  default:
+    name: milvus

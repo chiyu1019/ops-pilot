@@ -1,7 +1,7 @@
 [project]
 name = "super-biz-agent-py"
 version = "1.2.1"
-description = "基于 LangChain 的智能业务代理系统 - 支持 RAG 知识库和 AIOps 智能运维"
+description = "鍩轰簬 LangChain 鐨勬櫤鑳戒笟鍔′唬鐞嗙郴缁?- 鏀寔 RAG 鐭ヨ瘑搴撳拰 AIOps 鏅鸿兘杩愮淮"
 authors = [{name = "chief"}]
 readme = "README.md"
 requires-python = ">=3.11,<3.14"
@@ -119,6 +119,7 @@ addopts = [
     "--cov-report=html",
 ]
 testpaths = ["tests"]
+pythonpath = ["."]
 python_files = ["test_*.py", "*_test.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
@@ -197,3 +198,4 @@ reportOptionalMemberAccess = "none"
 reportUnusedImport = "information"
 reportUnusedVariable = "information"
 reportDeprecated = "information"
+
