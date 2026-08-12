@@ -100,6 +100,18 @@ services:
       - "8004:8004"
     restart: unless-stopped
 
+  mock-prometheus:
+    image: python:3.12-slim
+    working_dir: /mock
+    volumes:
+      - ./scripts/mock_prometheus.py:/mock/mock_prometheus.py
+    command: python -u mock_prometheus.py
+    environment:
+      MOCK_PROM_HOST: 0.0.0.0
+      MOCK_PROM_PORT: "9090"
+    ports:
+      - "9090:9090"
+    restart: unless-stopped
   app:
     build: .
     image: superbizagent:latest
@@ -109,6 +121,8 @@ services:
       mcp-cls:
         condition: service_started
       mcp-monitor:
+        condition: service_started
+      mock-prometheus:
         condition: service_started
     environment:
       # DashScope（.env 中配置 DASHSCOPE_API_KEY）
@@ -127,8 +141,8 @@ services:
       # MCP（容器网络内服务名）
       MCP_CLS_URL: http://mcp-cls:8003/mcp
       MCP_MONITOR_URL: http://mcp-monitor:8004/mcp
-      # Prometheus：宿主机上的 Prometheus 可用 host.docker.internal
-      PROMETHEUS_BASE_URL: ${PROMETHEUS_BASE_URL:-http://host.docker.internal:9090}
+      # Prometheus：容器网络内使用 mock-prometheus 服务（scripts/mock_prometheus.py）
+      PROMETHEUS_BASE_URL: http://mock-prometheus:9090
     ports:
       - "9900:9900"
     restart: unless-stopped
