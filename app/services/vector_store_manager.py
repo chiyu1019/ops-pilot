@@ -32,9 +32,10 @@ class VectorStoreManager:
             # （模块导入时就会执行此处，早于 FastAPI lifespan 中的 milvus_manager.connect）
             _ = milvus_manager.connect()
 
+            # 注意：pymilvus 3.x 的 MilvusClient 只识别 uri 参数，
+            # host/port 会被静默忽略并回退到 localhost，导致容器内连接失败
             connection_args = {
-                "host": config.milvus_host,
-                "port": config.milvus_port,
+                "uri": f"http://{config.milvus_host}:{config.milvus_port}",
             }
 
             # 创建 LangChain Milvus VectorStore
