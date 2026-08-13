@@ -1,4 +1,4 @@
-"""SuperBizAgent Python 版本
+"""OpsPilot Python 版本
 
 基于 LangChain 的智能业务代理系统
 """

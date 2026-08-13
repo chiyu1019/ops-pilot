@@ -1,5 +1,5 @@
 [project]
-name = "super-biz-agent-py"
+name = "ops-pilot"
 version = "1.2.1"
 description = "鍩轰簬 LangChain 鐨勬櫤鑳戒笟鍔′唬鐞嗙郴缁?- 鏀寔 RAG 鐭ヨ瘑搴撳拰 AIOps 鏅鸿兘杩愮淮"
 authors = [{name = "chief"}]

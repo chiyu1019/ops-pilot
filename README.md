@@ -1,4 +1,4 @@
-# SuperBizAgent
+# OpsPilot
 
 > 企业级智能对话和运维助手，支持 RAG 知识库问答和 AIOps 智能诊断
 
@@ -463,3 +463,23 @@ docker compose down
 - **对话 / RAG**：真实实现（Milvus + DashScope embedding + LangChain Agent + 多轮记忆）
 - **AIOps 诊断**：Plan-Execute-Replan 真实编排；CLS 日志与监控 MCP 当前返回模拟数据，可替换为真实 API（见 `mcp_servers/README.md`）；Prometheus 告警查询为真实 HTTP 调用
 - **会话记忆**：使用 MemorySaver（进程内存），重启后清空；生产化建议替换为 Redis / Postgres checkpointer
+
+## 🚀 推送到 GitHub
+
+```bash
+# 1. 在 GitHub 网页创建空仓库（不要勾选 README/LICENSE），例如命名为 ops-pilot
+# 2. 关联远程仓库（二选一）
+git remote add origin https://github.com/<你的用户名>/ops-pilot.git
+# 或 SSH：git remote add origin git@github.com:<你的用户名>/ops-pilot.git
+
+# 3. 推送
+git branch -M main
+git push -u origin main
+
+# 之后每次修改
+git add -A
+git commit -m "描述本次改动"
+git push
+```
+
+> 安全提醒：`.env` 已加入 `.gitignore`，推送前可用 `git check-ignore .env` 确认密钥不会被提交。

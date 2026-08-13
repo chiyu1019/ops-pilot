@@ -1,5 +1,5 @@
 # ============================================================
-# SuperBizAgent 全栈一键编排（Milvus + 2×MCP + FastAPI 应用）
+# OpsPilot 全栈一键编排（Milvus + 2×MCP + FastAPI 应用）
 # 启动：docker compose up -d --build
 # 注意：不要与 `docker compose -f vector-database.yml up` 同时运行
 # 环境变量从同目录 .env 读取（参考 .env.example）

@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     )
 
     # 应用配置
-    app_name: str = "SuperBizAgent"
+    app_name: str = "OpsPilot"
     app_version: str = "1.0.0"
     debug: bool = False
     host: str = "0.0.0.0"
