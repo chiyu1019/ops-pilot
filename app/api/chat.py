@@ -181,7 +181,7 @@ async def clear_session(request: ClearRequest):
         操作结果
     """
     try:
-        success = rag_agent_service.clear_session(request.session_id)
+        success = await rag_agent_service.clear_session(request.session_id)
         logger.info(f"清空会话: {request.session_id}, 结果: {success}")
 
         return ApiResponse(
@@ -206,7 +206,7 @@ async def get_session_info(session_id: str) -> SessionInfoResponse:
         会话信息
     """
     try:
-        history = rag_agent_service.get_session_history(session_id)
+        history = await rag_agent_service.get_session_history(session_id)
 
         return SessionInfoResponse(
             session_id=session_id,

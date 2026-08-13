@@ -3,8 +3,15 @@
 主应用程序，配置路由、中间件、静态文件等
 """
 
+import asyncio
+import sys
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
+# Windows 下 psycopg 异步连接需要 SelectorEventLoop（Postgres 会话记忆后端）
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from contextlib import asynccontextmanager

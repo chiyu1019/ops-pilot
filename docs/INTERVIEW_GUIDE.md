@@ -79,7 +79,7 @@ flowchart TD
   - **SSE 流式**：`astream(stream_mode="messages")` 逐 token 推给前端；现在还会把"工具调用开始/结束"事件透出（tool_call 事件），前端可以做"正在查询日志…"的中间态提示。
 - 面试怎么讲："记忆用 checkpointer 按 thread_id 隔离会话；流式用 messages 模式而不是 tokens 模式，因为这样能同时拿到工具调用事件和文本增量，前端体验更完整。"
 - 追问应对：
-  - MemorySaver 的局限？——进程内存，重启丢、多实例不共享；生产要换 Redis/Postgres checkpointer（LangGraph 都支持）。
+  - MemorySaver 的局限？——进程内存，重启丢、多实例不共享。项目里已实现 memory / redis / postgres 三种后端切换（`app/core/checkpointer.py`，`MEMORY_BACKEND` 控制）；生产用 Redis/Postgres checkpointer，对话与 AIOps 用独立 checkpoint_ns 隔离。
   - Agent 怎么防止无限循环？——`create_agent` 内部有 recursion_limit；AIOps 里我显式加了 MAX_STEPS=8 和 replan 次数限制。
   - 怎么防止编造？——系统提示要求"基于工具结果回答"，检索不到就明说；工具失败会返回错误信息而不是假装成功。
 
@@ -132,7 +132,7 @@ flowchart TD
 | RAG 流程？ | 上传→按标题+大小两级分割→embedding→Milvus→TopK 检索→拼上下文→LLM 生成。 |
 | 分块大小和 TopK 怎么定的？ | 800/overlap100 + 小分片合并；评测脚本扫 TopK，K=3 是准确率/耗时平衡点，准确率 85%+。 |
 | 为什么用 LangGraph？ | 状态显式管理（TypedDict + operator.add）、节点/条件边清晰、自带 checkpointer 和流式，比手写循环可控。 |
-| 多轮记忆怎么做的？ | MemorySaver + thread_id；超长裁剪保留 System+最近 3 轮；局限是内存态，生产换 Redis。 |
+| 多轮记忆怎么做的？ | memory / redis / postgres 三种后端可切换（MEMORY_BACKEND）；持久化用 Redis/Postgres checkpointer + thread_id 隔离；超长裁剪保留 System+最近 3 轮。 |
 | 流式输出怎么实现？ | SSE + sse-starlette，LangGraph astream messages 模式，文本块和工具事件都能推。 |
 | 工具调用失败会怎样？ | MCP 层指数退避重试；仍失败返回结构化错误给 LLM；executor 记入执行历史，replanner 兜底。 |
 | 怎么防止 Agent 死循环？ | recursion_limit + replanner 硬护栏（步数上限、禁止无限 replan）。 |

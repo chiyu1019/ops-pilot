@@ -5,7 +5,7 @@
 
 from typing import AsyncGenerator, Dict, Any
 from langgraph.graph import StateGraph, END
-from langgraph.checkpoint.memory import MemorySaver
+from app.core.checkpointer import aget_checkpointer
 from loguru import logger
 
 from app.agent.aiops import PlanExecuteState, planner, executor, replanner
@@ -21,13 +21,15 @@ class AIOpsService:
     """通用 Plan-Execute-Replan 服务"""
 
     def __init__(self):
-        """初始化服务"""
-        self.checkpointer = MemorySaver()
-        self.graph = self._build_graph()
+        """初始化服务（图编译延后到首次执行，checkpointer 异步创建）"""
+        self.checkpointer = None
+        self.workflow = None
+        self.graph = None
+        self._build_workflow()
         logger.info("Plan-Execute-Replan Service 初始化完成")
 
-    def _build_graph(self):
-        """构建 Plan-Execute-Replan 工作流"""
+    def _build_workflow(self):
+        """构建 Plan-Execute-Replan 工作流（未编译）"""
         logger.info("构建工作流图...")
 
         # 创建状态图
@@ -72,11 +74,16 @@ class AIOpsService:
             }
         )
 
-        # 编译工作流
-        compiled_graph = workflow.compile(checkpointer=self.checkpointer)
-
+        # 保存未编译的工作流；编译延后到 _ensure_graph（checkpointer 需异步创建）
+        self.workflow = workflow
         logger.info("工作流图构建完成")
-        return compiled_graph
+
+    async def _ensure_graph(self):
+        """确保工作流已编译（首次执行时异步创建 checkpointer）。"""
+        if self.graph is None:
+            self.checkpointer = await aget_checkpointer()
+            self.graph = self.workflow.compile(checkpointer=self.checkpointer)
+            logger.info(f"工作流图已编译，checkpointer={type(self.checkpointer).__name__}")
 
     async def execute(
         self,
@@ -96,6 +103,7 @@ class AIOpsService:
         logger.info(f"[会话 {session_id}] 开始执行任务: {user_input}")
 
         try:
+            await self._ensure_graph()
             # 初始化状态
             initial_state: PlanExecuteState = {
                 "input": user_input,
@@ -107,7 +115,9 @@ class AIOpsService:
             # 流式执行工作流
             config_dict = {
                 "configurable": {
-                    "thread_id": session_id
+                    "thread_id": session_id,
+                    # AIOps 使用独立命名空间，避免与对话会话的 checkpoint 相互覆盖
+                    "checkpoint_ns": "aiops",
                 }
             }
 

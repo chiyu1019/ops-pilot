@@ -15,7 +15,7 @@ from langchain_core.messages import (
     RemoveMessage,
     SystemMessage,
 )
-from langgraph.checkpoint.memory import MemorySaver
+from app.core.checkpointer import aget_checkpointer
 from langgraph.graph.message import REMOVE_ALL_MESSAGES, add_messages
 from loguru import logger
 from typing_extensions import TypedDict
@@ -107,8 +107,8 @@ class RagAgentService:
         # MCP 客户端（延迟初始化，使用全局管理）
         self.mcp_tools: list = []
 
-        # 创建内存检查点（用于会话管理）
-        self.checkpointer = MemorySaver()
+        # 会话检查点：memory / redis / postgres（由 app.core.checkpointer 管理）
+        self.checkpointer = None
 
         # Agent 初始化（会在异步方法中完成）
         self.agent = None
@@ -141,6 +141,10 @@ class RagAgentService:
             logger.info(f"成功加载 {len(mcp_tools)} 个 MCP 工具")
 
         all_tools = self.tools + self.mcp_tools
+
+        # 会话记忆后端（惰性创建：memory / redis / postgres）
+        if self.checkpointer is None:
+            self.checkpointer = await aget_checkpointer()
 
         self.agent = create_agent(
             self.model,
@@ -356,7 +360,13 @@ class RagAgentService:
             )
             yield {"type": "error", "data": detail}
 
-    def get_session_history(self, session_id: str) -> list:
+    async def _get_checkpointer(self):
+        """获取会话 checkpointer（首次使用时惰性创建）。"""
+        if self.checkpointer is None:
+            self.checkpointer = await aget_checkpointer()
+        return self.checkpointer
+
+    async def get_session_history(self, session_id: str) -> list:
         """
         获取会话历史（从 MemorySaver checkpointer 中读取）
 
@@ -371,22 +381,23 @@ class RagAgentService:
             config = {"configurable": {"thread_id": session_id}}
             
             # 获取该 thread 的最新检查点
-            checkpoint_tuple = self.checkpointer.get(config)
+            checkpoint = await (await self._get_checkpointer()).aget(config)
             
-            if not checkpoint_tuple:
+            if not checkpoint:
                 logger.info(f"获取会话历史: {session_id}, 消息数量: 0")
                 return []
             
             # checkpoint_tuple 可能是命名元组或普通元组，安全地提取 checkpoint
             # 通常第一个元素是 checkpoint 数据
-            if hasattr(checkpoint_tuple, 'checkpoint'):
-                checkpoint_data = checkpoint_tuple.checkpoint  # type: ignore
+            # 新版 langgraph-checkpoint 返回 dict：{"channel_values": ...}
+            if isinstance(checkpoint, dict):
+                messages = checkpoint.get("channel_values", {}).get("messages", [])
+            elif hasattr(checkpoint, "channel_values"):
+                messages = checkpoint.channel_values.get("messages", [])
             else:
-                # 如果是普通元组，第一个元素是 checkpoint
-                checkpoint_data = checkpoint_tuple[0] if checkpoint_tuple else {}
-            
-            # 从检查点中提取消息
-            messages = checkpoint_data.get("channel_values", {}).get("messages", [])
+                # 兼容旧版本（tuple: (checkpoint_data, metadata)）
+                checkpoint_data = checkpoint[0] if isinstance(checkpoint, tuple) else {}
+                messages = checkpoint_data.get("channel_values", {}).get("messages", [])
             
             # 转换为前端需要的格式
             history = []
@@ -421,7 +432,7 @@ class RagAgentService:
             logger.error(f"获取会话历史失败: {session_id}, 错误: {e}")
             return []
 
-    def clear_session(self, session_id: str) -> bool:
+    async def clear_session(self, session_id: str) -> bool:
         """
         清空会话历史（从 MemorySaver checkpointer 中删除）
 
@@ -433,7 +444,7 @@ class RagAgentService:
         """
         try:
             # 使用 checkpointer 的 delete_thread 方法删除该 thread 的所有检查点
-            self.checkpointer.delete_thread(session_id)
+            await (await self._get_checkpointer()).adelete_thread(session_id)
             
             logger.info(f"已清除会话历史: {session_id}")
             return True

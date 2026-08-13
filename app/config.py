@@ -53,6 +53,11 @@ class Settings(BaseSettings):
     prometheus_base_url: str = "http://127.0.0.1:9090"
     prometheus_request_timeout: float = 10.0
 
+    # 会话记忆后端：memory（进程内，重启丢失）| redis | postgres
+    memory_backend: str = "memory"
+    redis_url: str = "redis://localhost:6379/0"
+    postgres_dsn: str = "postgresql://postgres:postgres@localhost:5432/langgraph"
+
     @property
     def mcp_servers(self) -> Dict[str, Dict[str, Any]]:
         """获取完整的 MCP 服务器配置"""

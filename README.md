@@ -462,7 +462,7 @@ docker compose down
 
 - **对话 / RAG**：真实实现（Milvus + DashScope embedding + LangChain Agent + 多轮记忆）
 - **AIOps 诊断**：Plan-Execute-Replan 真实编排；CLS 日志与监控 MCP 当前返回模拟数据，可替换为真实 API（见 `mcp_servers/README.md`）；Prometheus 告警查询为真实 HTTP 调用
-- **会话记忆**：使用 MemorySaver（进程内存），重启后清空；生产化建议替换为 Redis / Postgres checkpointer
+- **会话记忆**：支持 memory / redis / postgres 三种后端（`MEMORY_BACKEND` 切换），生产环境可用 Redis / Postgres 持久化
 
 ## 🚀 推送到 GitHub
 
@@ -483,3 +483,24 @@ git push
 ```
 
 > 安全提醒：`.env` 已加入 `.gitignore`，推送前可用 `git check-ignore .env` 确认密钥不会被提交。
+
+
+## 🧠 会话记忆持久化（Redis / Postgres）
+
+默认使用进程内 MemorySaver（重启后丢失）。需要持久化时切换后端：
+
+**1. Redis（推荐，轻量）**
+
+- `.env` 设置 `MEMORY_BACKEND=redis`
+- Docker 模式已内置 Redis Stack（`opspilot-redis`，宿主机端口 6380，容器内 `redis://redis:6379/0`）
+- 注意：`langgraph-checkpoint-redis` 依赖 RediSearch，必须使用 Redis Stack 镜像；本地模式需自行安装并配置 `REDIS_URL`
+
+**2. Postgres（生产级）**
+
+- `.env` 设置 `MEMORY_BACKEND=postgres`
+- Docker 模式已内置 Postgres（`opspilot-postgres`，`POSTGRES_DSN=postgresql://postgres:postgres@postgres:5432/langgraph`）
+- 首次启动会自动创建 checkpoint 数据表
+
+改完 `.env` 后执行 `docker compose up -d` 重建应用即可生效。
+
+验证方式：聊天产生会话后 `docker compose restart app`，再次打开同一会话，历史仍在（对话与 AIOps 使用独立命名空间，互不覆盖）。
