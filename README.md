@@ -411,7 +411,7 @@ netstat -ano | findstr :8004  # Monitor MCP
 - [MCP 协议](https://modelcontextprotocol.io/)
 
 ## 📄 许可证
-author： chief
+author： chiyu1019
 
 MIT License
 
