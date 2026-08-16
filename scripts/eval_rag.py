@@ -25,8 +25,14 @@ import time
 from pathlib import Path
 from typing import Any
 
+import sys
+
 from app.config import config
 from app.services.vector_store_manager import vector_store_manager
+
+# Windows GBK 控制台兼容：输出无法编码时用替换符而不是崩溃
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_QUESTIONS = REPO_ROOT / "tests" / "data" / "rag_eval_questions.json"
@@ -86,7 +92,7 @@ def print_report(report: dict[str, Any]) -> None:
     print(f"RAG 检索评测报告  top_k={report['top_k']}")
     print("=" * 72)
     for d in report["details"]:
-        mark = "✔" if d["hit"] else "✘"
+        mark = "[PASS]" if d["hit"] else "[FAIL]"
         print(f"[{mark}] {d['question']}")
         print(f"      期望: {', '.join(d['expected_files']) or '无'}")
         print(f"      召回: {', '.join(d['retrieved_files']) or '无'}")
