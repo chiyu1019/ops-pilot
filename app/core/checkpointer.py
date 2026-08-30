@@ -11,15 +11,16 @@
 
 from __future__ import annotations
 
+import asyncio
 import inspect
-import threading
 from typing import Any
 
 from loguru import logger
 
 from app.config import config
 
-_lock = threading.Lock()
+# 注意：必须用 asyncio.Lock，threading.Lock 在 await 期间持锁会阻塞事件循环造成死锁
+_lock = asyncio.Lock()
 _checkpointer: Any = None
 _postgres_cm: Any = None
 
@@ -36,7 +37,7 @@ async def aget_checkpointer():
     global _checkpointer
     if _checkpointer is not None:
         return _checkpointer
-    with _lock:
+    async with _lock:
         if _checkpointer is not None:
             return _checkpointer
         backend = config.memory_backend.strip().lower()
@@ -77,7 +78,7 @@ async def _create_postgres_checkpointer():
 async def aclose_checkpointer() -> None:
     """关闭持久化 checkpointer（应用退出时调用）。"""
     global _checkpointer, _postgres_cm
-    with _lock:
+    async with _lock:
         if _checkpointer is None:
             return
         backend = config.memory_backend.strip().lower()

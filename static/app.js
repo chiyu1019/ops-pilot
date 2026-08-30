@@ -11,6 +11,7 @@ class OpsPilotApp {
         
         this.initializeElements();
         this.bindEvents();
+        this.initAutoResponse();
         this.updateUI();
         this.initMarkdown();
         this.checkAndSetCentered();
@@ -56,6 +57,47 @@ class OpsPilotApp {
             }
         };
         checkMarked();
+    }
+
+    // 自动响应：告警事件实时面板（SSE）
+    initAutoResponse() {
+        this.autoAlertList = document.getElementById('autoAlertList');
+        if (!this.autoAlertList) return;
+
+        fetch(this.apiBaseUrl + '/alerts/events')
+            .then(r => r.json())
+            .then(res => {
+                const events = (res && res.data) || [];
+                events.forEach(ev => this.appendAutoEvent(ev));
+            })
+            .catch(() => {});
+
+        const es = new EventSource('/api/alerts/stream');
+        es.onmessage = (e) => {
+            try { this.appendAutoEvent(JSON.parse(e.data)); } catch (err) {}
+        };
+        es.onerror = () => { /* 后端暂不可用时自动重连 */ };
+    }
+
+    appendAutoEvent(ev) {
+        if (!this.autoAlertList) return;
+        const empty = this.autoAlertList.querySelector('.auto-alert-empty');
+        if (empty) empty.remove();
+
+        const labels = {
+            alert_received: '收到告警',
+            diagnosis_started: '开始诊断',
+            diagnosis_completed: '诊断完成',
+            diagnosis_failed: '诊断失败'
+        };
+        const div = document.createElement('div');
+        div.className = 'auto-alert-item' + (ev.type === 'diagnosis_completed' ? ' ok' : (ev.type === 'diagnosis_failed' ? ' err' : ''));
+        const name = ev.alertname ? ' · ' + ev.alertname : '';
+        div.textContent = '[' + (ev.time || '') + '] ' + (labels[ev.type] || ev.type) + name;
+        this.autoAlertList.prepend(div);
+        while (this.autoAlertList.children.length > 50) {
+            this.autoAlertList.removeChild(this.autoAlertList.lastChild);
+        }
     }
 
     // 安全地渲染 Markdown

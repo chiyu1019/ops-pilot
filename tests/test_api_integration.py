@@ -31,12 +31,23 @@ requires_llm = pytest.mark.skipif(
 
 @pytest.fixture(scope="module")
 def api_client():
-    from fastapi.testclient import TestClient
+    # 集成测试中关闭自动响应/沉淀，避免 lifespan 启动轮询触发真实诊断导致超时
+    from app.config import config
 
-    from app.main import app
+    old_auto = config.auto_response_enabled
+    old_distill = config.knowledge_distill_enabled
+    config.auto_response_enabled = False
+    config.knowledge_distill_enabled = False
+    try:
+        from fastapi.testclient import TestClient
 
-    with TestClient(app) as client:
-        yield client
+        from app.main import app
+
+        with TestClient(app) as client:
+            yield client
+    finally:
+        config.auto_response_enabled = old_auto
+        config.knowledge_distill_enabled = old_distill
 
 
 @requires_milvus

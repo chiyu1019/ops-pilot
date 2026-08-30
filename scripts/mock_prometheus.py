@@ -20,6 +20,10 @@ from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 
+# 运行时动态追加的告警（POST /api/v1/alerts/trigger）
+_EXTRA_ALERTS: list[dict] = []
+
+
 def _rfc3339(offset_minutes: int) -> str:
     """返回 offset_minutes 分钟前的 RFC3339 时间（Prometheus activeAt 格式）。"""
     now = datetime.now(timezone.utc) - timedelta(minutes=offset_minutes)
@@ -56,7 +60,7 @@ def build_alerts_payload() -> dict:
                 "summary": "内存使用率过高",
                 "description": "payment-service 内存使用率超过 70% 阈值",
             },
-            "state": "firing",
+            "state": "pending",
             "activeAt": _rfc3339(12),
         },
         {
@@ -75,6 +79,7 @@ def build_alerts_payload() -> dict:
             "activeAt": _rfc3339(3),
         },
     ]
+    alerts.extend(_EXTRA_ALERTS)
     return {"status": "success", "data": {"alerts": alerts}}
 
 
@@ -102,6 +107,47 @@ class MockPrometheusHandler(BaseHTTPRequestHandler):
             "[mock-prometheus] %s - %s\n" % (self.log_date_time_string(), fmt % args)
         )
         sys.stdout.flush()
+
+    def do_POST(self) -> None:
+        """动态注入/重置告警，便于演示"新告警自动响应"。"""
+        self.log_message("POST %s", self.path)
+        length = int(self.headers.get("Content-Length") or 0)
+        raw = self.rfile.read(length) if length else b"{}"
+        try:
+            body = json.loads(raw.decode("utf-8") or "{}")
+        except json.JSONDecodeError:
+            body = {}
+
+        path = self.path.rstrip("/")
+        if path == "/api/v1/alerts/trigger":
+            alert = {
+                "labels": {
+                    "alertname": body.get("alertname", "ServiceUnavailable"),
+                    "severity": body.get("severity", "warning"),
+                    "instance": body.get("instance", "checkout-service"),
+                    "job": "node-exporter",
+                    "namespace": "default",
+                },
+                "annotations": {
+                    "summary": body.get("summary", "服务不可用"),
+                    "description": body.get(
+                        "description",
+                        "checkout-service 连续 3 次健康检查失败，服务不可用",
+                    ),
+                },
+                "state": "firing",
+                "activeAt": _rfc3339(0),
+            }
+            _EXTRA_ALERTS.append(alert)
+            self._send_json({"status": "success", "data": {"added": alert}})
+        elif path == "/api/v1/alerts/reset":
+            _EXTRA_ALERTS.clear()
+            self._send_json({"status": "success", "data": {"reset": True}})
+        else:
+            self._send_json(
+                {"status": "error", "errorType": "bad_data", "error": f"no route: {self.path}"},
+                status=404,
+            )
 
     def do_GET(self) -> None:
         self.log_message("GET %s", self.path)

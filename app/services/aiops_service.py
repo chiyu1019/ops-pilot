@@ -3,12 +3,26 @@
 基于 LangGraph 官方教程实现
 """
 
-from typing import AsyncGenerator, Dict, Any
+import asyncio
+from typing import AsyncGenerator, Dict, Any, Optional
+
+from app.config import config
 from langgraph.graph import StateGraph, END
 from app.core.checkpointer import aget_checkpointer
 from loguru import logger
 
 from app.agent.aiops import PlanExecuteState, planner, executor, replanner
+
+
+# 后台任务集合（防止诊断/沉淀任务被 GC）
+_background_tasks: set[asyncio.Task] = set()
+
+
+def _spawn_background(coro) -> None:
+    """注册后台任务并防止被垃圾回收。"""
+    task = asyncio.create_task(coro)
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
 
 
 # 节点名称常量
@@ -25,6 +39,7 @@ class AIOpsService:
         self.checkpointer = None
         self.workflow = None
         self.graph = None
+        self._ensure_lock = asyncio.Lock()
         self._build_workflow()
         logger.info("Plan-Execute-Replan Service 初始化完成")
 
@@ -79,16 +94,19 @@ class AIOpsService:
         logger.info("工作流图构建完成")
 
     async def _ensure_graph(self):
-        """确保工作流已编译（首次执行时异步创建 checkpointer）。"""
+        """确保工作流已编译（首次执行时异步创建 checkpointer；并发安全）。"""
         if self.graph is None:
-            self.checkpointer = await aget_checkpointer()
-            self.graph = self.workflow.compile(checkpointer=self.checkpointer)
-            logger.info(f"工作流图已编译，checkpointer={type(self.checkpointer).__name__}")
+            async with self._ensure_lock:
+                if self.graph is None:
+                    self.checkpointer = await aget_checkpointer()
+                    self.graph = self.workflow.compile(checkpointer=self.checkpointer)
+                    logger.info(f"工作流图已编译，checkpointer={type(self.checkpointer).__name__}")
 
     async def execute(
         self,
         user_input: str,
-        session_id: str = "default"
+        session_id: str = "default",
+        alert: Optional[Dict[str, Any]] = None,
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """
         执行 Plan-Execute-Replan 流程
@@ -115,9 +133,9 @@ class AIOpsService:
             # 流式执行工作流
             config_dict = {
                 "configurable": {
-                    "thread_id": session_id,
-                    # AIOps 使用独立命名空间，避免与对话会话的 checkpoint 相互覆盖
-                    "checkpoint_ns": "aiops",
+                    # 使用 thread_id 前缀隔离，避免与对话会话的 checkpoint 相互覆盖
+                    # （checkpoint_ns 会让 get_state 报 Subgraph not found）
+                    "thread_id": f"aiops:{session_id}",
                 }
             }
 
@@ -140,8 +158,13 @@ class AIOpsService:
                     elif node_name == NODE_REPLANNER:
                         yield self._format_replanner_event(node_output)
 
-            # 获取最终状态
-            final_state = self.graph.get_state(config_dict)
+            # 获取最终状态（失败不影响已生成的报告）
+            final_state = None
+            try:
+                # AsyncRedisSaver 要求异步接口，必须用 aget_state
+                final_state = await self.graph.aget_state(config_dict)
+            except Exception as e:
+                logger.warning(f"获取最终状态失败（不影响结果）: {e}")
             final_response = ""
 
             # 安全地获取响应（处理 values 可能为 None 的情况）
@@ -157,6 +180,19 @@ class AIOpsService:
             }
 
             logger.info(f"[会话 {session_id}] 任务执行完成")
+
+            # 闭环沉淀：诊断成功后异步把处理经验写入知识库（越用越聪明）
+            if config.knowledge_distill_enabled and final_response:
+                from app.services.knowledge_distill_service import distill
+
+                past_steps = (
+                    (final_state.values or {}).get("past_steps", [])
+                    if final_state
+                    else []
+                )
+                _spawn_background(
+                    distill(alert, user_input, past_steps, final_response)
+                )
 
         except Exception as e:
             logger.error(f"[会话 {session_id}] 任务执行失败: {e}", exc_info=True)

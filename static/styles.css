@@ -1163,3 +1163,32 @@ body {
         right: 0;
     }
 }
+
+/* 自动响应事件面板 */
+.auto-alert-section {
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    margin-top: 10px;
+    padding-top: 8px;
+}
+.auto-alert-list {
+    max-height: 200px;
+    overflow-y: auto;
+    padding: 4px 6px;
+}
+.auto-alert-item {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.8);
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 6px;
+    padding: 4px 8px;
+    margin-bottom: 4px;
+    word-break: break-all;
+    line-height: 1.4;
+}
+.auto-alert-item.ok { color: #4ade80; background: rgba(74, 222, 128, 0.12); }
+.auto-alert-item.err { color: #f87171; background: rgba(248, 113, 113, 0.12); }
+.auto-alert-empty {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.4);
+    padding: 4px 8px;
+}

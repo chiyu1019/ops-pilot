@@ -504,3 +504,29 @@ git push
 改完 `.env` 后执行 `docker compose up -d` 重建应用即可生效。
 
 验证方式：聊天产生会话后 `docker compose restart app`，再次打开同一会话，历史仍在（对话与 AIOps 使用独立命名空间，互不覆盖）。
+
+
+## 🚨 自动响应与闭环沉淀
+
+**自动响应**：应用启动后后台轮询 Prometheus（每 `ALERT_POLL_INTERVAL` 秒），发现新的 firing 告警自动触发 AIOps 诊断；也支持 Alertmanager/云监控 Webhook 推送（`POST /api/webhook/alerts`）。同一告警在 `ALERT_COOLDOWN_SECONDS` 冷却期内不重复诊断，侧边栏"自动响应"面板通过 SSE 实时展示"收到告警 -> 自动诊断 -> 报告完成"。
+
+**闭环沉淀**：每次诊断成功生成报告后，自动把「告警信息 + 执行步骤 + 工具结果 + 报告」总结成 Markdown 知识条目写入向量库（`generated/<告警名>-<指纹>.md`，同指纹覆盖更新）。下一次同类告警进来时，planner 会检索到这份经验，诊断更快更准——系统越用越聪明。
+
+### 快速验证
+
+```bash
+# 1. 查看/推送告警事件（页面侧边栏"自动响应"面板实时显示）
+curl http://localhost:9900/api/alerts/events
+curl -N http://localhost:9900/api/alerts/stream
+
+# 2. Webhook 推送一条新告警（自动触发诊断，约 1-2 分钟出报告）
+curl -X POST http://localhost:9900/api/webhook/alerts -H "Content-Type: application/json" -d '{"status":"firing","alerts":[{"labels":{"alertname":"ServiceUnavailable","severity":"critical","instance":"checkout-service"},"annotations":{"description":"服务不可用"}}]}'
+
+# 3. 向 mock Prometheus 注入一条新告警（下一次轮询自动触发）
+curl -X POST http://localhost:9090/api/v1/alerts/trigger -H "Content-Type: application/json" -d '{"alertname":"DiskFull","instance":"log-service"}'
+
+# 4. 验证闭环沉淀：诊断完成后检索知识库
+docker compose exec app python -c "from app.services.vector_store_manager import vector_store_manager; docs = vector_store_manager.similarity_search('HighCPUUsage 告警处理经验', k=10); print([d.metadata.get('_source') for d in docs if d.metadata.get('_generated')])"
+```
+
+> 关闭开关：`.env` 中 `AUTO_RESPONSE_ENABLED=false` / `KNOWLEDGE_DISTILL_ENABLED=false`。

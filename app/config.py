@@ -58,6 +58,14 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
     postgres_dsn: str = "postgresql://postgres:postgres@localhost:5432/langgraph"
 
+    # 自动响应（实时告警接入）
+    auto_response_enabled: bool = True
+    alert_poll_interval: int = 30       # 轮询 Prometheus 告警间隔（秒）
+    alert_cooldown_seconds: int = 900   # 同一告警去重冷却时间（秒）
+
+    # 闭环沉淀（诊断结果回写知识库）
+    knowledge_distill_enabled: bool = True
+
     @property
     def mcp_servers(self) -> Dict[str, Dict[str, Any]]:
         """获取完整的 MCP 服务器配置"""
