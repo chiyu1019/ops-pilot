@@ -158,7 +158,8 @@ class MockPrometheusHandler(BaseHTTPRequestHandler):
             self._send_json(
                 {"status": "success", "data": {"resultType": "vector", "result": []}}
             )
-        elif self.path.rstrip("/") in ("/", "/health", "/-/healthy"):
+        # 注意："/".rstrip("/") 结果是空串，因此根路径要匹配 ""
+        elif self.path.rstrip("/") in ("", "/health", "/-/healthy"):
             self._send_text("mock-prometheus ok")
         else:
             self._send_json(
