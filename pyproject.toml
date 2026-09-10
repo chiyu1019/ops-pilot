@@ -27,12 +27,16 @@ dependencies = [
     "python-dotenv>=1.0.0",
     "langchain-milvus>=0.3.3",
     "langchain-text-splitters>=1.1.0",
-    "langchain-mcp-adapters>=0.2.1",
+    "langchain-mcp-adapters>=0.2.1,<0.4.0",
+    # mcp 2.x 移除了 langchain-mcp-adapters 依赖的 mcp.shared.context.RequestContext
+    "mcp>=1.16.0,<2.0.0",
     "fastmcp>=2.14.0",
     "langchain-qwq>=0.3.4",
     "langgraph-checkpoint-redis>=0.5.0",
     "langgraph-checkpoint-postgres>=3.0.0",
     "redis>=5.0.0",
+    # ES 客户端 9.x 仅兼容 9.x 服务端；本项目服务端为 8.15，必须钉在 8.x
+    "elasticsearch>=8.13.0,<9.0.0",
     "psycopg[binary]>=3.1.0",
 ]
 

@@ -1,0 +1,13 @@
+{
+  "description": "关键词型评测集：查询中包含告警名/指标名等精确 token，用于验证 BM25 与混合检索的价值",
+  "questions": [
+    { "question": "HighCPUUsage 告警的处置流程是什么？", "expected_files": ["cpu_high_usage.md"] },
+    { "question": "HighMemoryUsage 告警应该怎么处理？", "expected_files": ["memory_high_usage.md"] },
+    { "question": "HighDiskUsage 告警的排查步骤有哪些？", "expected_files": ["disk_high_usage.md"] },
+    { "question": "ServiceUnavailable 告警如何处理？", "expected_files": ["service_unavailable.md"] },
+    { "question": "SlowResponse 告警怎么定位根因？", "expected_files": ["slow_response.md"] },
+    { "question": "cpu_usage > 80 的日志查询条件怎么写？", "expected_files": ["cpu_high_usage.md"] },
+    { "question": "memory_usage 指标超过多少会触发告警？", "expected_files": ["memory_high_usage.md"] },
+    { "question": "system-metrics 主题下与 CPU 相关的查询示例？", "expected_files": ["cpu_high_usage.md"] }
+  ]
+}

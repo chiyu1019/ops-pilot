@@ -6,6 +6,8 @@ from typing import Any, Dict, Optional
 
 from loguru import logger
 
+from app.config import config
+from app.services.bm25_search_service import bm25_search_service
 from app.services.document_splitter_service import document_splitter_service
 from app.services.vector_store_manager import vector_store_manager
 
@@ -151,9 +153,11 @@ class VectorIndexService:
             content = path.read_text(encoding="utf-8")
             logger.info(f"读取文件: {path}, 内容长度: {len(content)} 字符")
 
-            # 2. 删除该文件的旧数据（如果存在）
+            # 2. 删除该文件的旧数据（如果存在）：向量库 + ES 索引
             normalized_path = path.as_posix()
             vector_store_manager.delete_by_source(normalized_path)
+            if config.hybrid_enabled:
+                bm25_search_service.delete_by_source(normalized_path)
 
             # 3. 使用新的文档分割器
             documents = document_splitter_service.split_document(content, normalized_path)
@@ -162,6 +166,16 @@ class VectorIndexService:
             # 4. 添加文档到向量存储
             if documents:
                 vector_store_manager.add_documents(documents)
+                logger.info(f"向量索引完成: {file_path}, 共 {len(documents)} 个分片")
+
+                # 5. 同步写入 ES（BM25 关键词检索），失败不影响向量检索
+                if config.hybrid_enabled:
+                    try:
+                        bm25_search_service.index_documents(documents)
+                        bm25_search_service.refresh()
+                        logger.info(f"BM25 索引完成: {file_path}")
+                    except Exception as e:
+                        logger.warning(f"BM25 索引失败（混合检索将降级为纯向量）: {e}")
                 logger.info(f"文件索引完成: {file_path}, 共 {len(documents)} 个分片")
             else:
                 logger.warning(f"文件内容为空或无法分割: {file_path}")

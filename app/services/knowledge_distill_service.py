@@ -17,6 +17,7 @@ from langchain_qwq import ChatQwen
 from loguru import logger
 
 from app.config import config
+from app.services.bm25_search_service import bm25_search_service
 from app.services.vector_store_manager import vector_store_manager
 
 
@@ -115,6 +116,8 @@ async def distill(
         source = source_path(alert, task_input, alertname)
         # 去重：先删除同指纹旧条目，再写入新条目
         vector_store_manager.delete_by_source(source)
+        if config.hybrid_enabled:
+            bm25_search_service.delete_by_source(source)
         doc = Document(
             page_content=markdown,
             metadata={
@@ -126,6 +129,14 @@ async def distill(
             },
         )
         vector_store_manager.add_documents([doc])
+        # 同步写入 ES，使沉淀经验也能被 BM25/混合检索命中
+        if config.hybrid_enabled:
+            try:
+                bm25_search_service.index_documents([doc])
+                bm25_search_service.refresh()
+                logger.info("沉淀知识已写入 BM25 索引")
+            except Exception as e:
+                logger.warning(f"沉淀知识写入 BM25 索引失败（不影响向量检索）: {e}")
         logger.info(f"知识库沉淀完成: {source}（{len(markdown)} 字符）")
         return True
 

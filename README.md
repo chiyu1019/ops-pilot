@@ -530,3 +530,66 @@ docker compose exec app python -c "from app.services.vector_store_manager import
 ```
 
 > 关闭开关：`.env` 中 `AUTO_RESPONSE_ENABLED=false` / `KNOWLEDGE_DISTILL_ENABLED=false`。
+
+
+## 🔀 混合检索（向量 + BM25 + RRF 融合）
+
+单一向量检索的短板：告警名、错误码、指标名这类精确 token 容易被"语义近似"带偏。
+因此知识检索走**双路召回 + 融合重排**：
+
+```
+query ─┬─> Milvus 向量召回（语义，cosine/L2）  ─┐
+       └─> Elasticsearch BM25 召回（关键词）   ─┴─> RRF / 归一化融合 ─> Top-K ─> LLM
+```
+
+- **融合方式一：RRF（推荐）** `score = Σ w_i / (k + rank_i)`，默认 `k=60`；
+  不需要跨检索器对齐分数尺度，对异常分数鲁棒
+- **融合方式二：归一化** 向量距离转相似度 → min-max 归一化 → `alpha*向量 + (1-alpha)*BM25`，
+  可以按业务侧重某一路
+- **降级策略**：ES 不可用或 BM25 召回失败时自动退回纯向量检索，问答不中断
+- **索引同步**：文档上传与闭环沉淀（诊断经验回写）都会同时写入 Milvus 与 ES；
+  重复上传先按来源删除旧分片再写新分片
+
+### 配置
+
+```bash
+HYBRID_ENABLED=true          # 关闭则退化为纯向量检索
+ES_URL=http://localhost:9200 # Docker 模式由 compose 注入 http://elasticsearch:9200
+ES_INDEX=opspilot_knowledge
+HYBRID_FUSION=rrf            # rrf | normalize
+HYBRID_RRF_K=60              # RRF 常数
+HYBRID_RECALL_K=10           # 每路候选数量（融合前）
+HYBRID_VECTOR_WEIGHT=0.7     # RRF 中向量权重（BM25 占 1-0.7）
+HYBRID_ALPHA=0.5             # normalize 模式下向量权重
+```
+
+### 实测数据（本项目，2026-09-10）
+
+语义型评测集（11 题，`tests/data/rag_eval_questions.json`）：
+
+| 模式 | 命中 | 准确率 | 平均耗时 |
+|------|------|--------|----------|
+| vector（纯向量） | 11/11 | 100.0% | 218ms |
+| bm25（纯关键词） | 10/11 | 90.9% | 51ms |
+| hybrid-rrf | 11/11 | 100.0% | 245ms |
+| hybrid-normalize | 11/11 | 100.0% | 294ms |
+
+关键词型评测集（8 题，`tests/data/hybrid_eval_keyword.json`）：
+
+| 模式 | 命中 | 准确率 | 平均耗时 |
+|------|------|--------|----------|
+| vector | 8/8 | 100.0% | 205ms |
+| bm25 | 6/8 | 75.0% | 51ms |
+| hybrid-rrf（等权 0.5） | 7/8 | 87.5% | 270ms |
+| **hybrid-rrf（向量权重 0.7）** | **8/8** | **100.0%** | **239ms** |
+| hybrid-normalize | 8/8 | 100.0% | 276ms |
+
+调参结论：**等权 RRF 会被 BM25 的噪声拖累（87.5%），把向量权重调到 0.7 后恢复到 100%**，
+这也是当前默认值。BM25 单独使用准确率最低，但**延迟只有约 1/4**，适合作为召回补充而非主力。
+
+复现命令：
+
+```bash
+python scripts/eval_hybrid.py --top-k 3 --recall-k 10
+python scripts/eval_hybrid.py --questions tests/data/hybrid_eval_keyword.json
+```

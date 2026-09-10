@@ -53,6 +53,23 @@ class Settings(BaseSettings):
     prometheus_base_url: str = "http://127.0.0.1:9090"
     prometheus_request_timeout: float = 10.0
 
+    # ---------- 混合检索（向量 + BM25 关键词，RRF/归一化融合） ----------
+    # 是否启用混合检索（关闭则退化为纯向量检索）
+    hybrid_enabled: bool = True
+    # Elasticsearch 地址与索引名
+    es_url: str = "http://localhost:9200"
+    es_index: str = "opspilot_knowledge"
+    # 融合方式：rrf（倒数排名融合，推荐）| normalize（分数归一化加权）
+    hybrid_fusion: str = "rrf"
+    # RRF 常数 k（论文默认 60，越小越强调头部排名）
+    hybrid_rrf_k: int = 60
+    # 每一路召回的候选数量（融合前的候选池）
+    hybrid_recall_k: int = 10
+    # normalize 模式下向量得分权重（1-alpha 为 BM25 权重）
+    hybrid_alpha: float = 0.5
+    # RRF 模式下向量路权重（BM25 占剩余权重；0.5=等权，中文小知识库建议 0.7）
+    hybrid_vector_weight: float = 0.7
+
     # 会话记忆后端：memory（进程内，重启丢失）| redis | postgres
     memory_backend: str = "memory"
     redis_url: str = "redis://localhost:6379/0"

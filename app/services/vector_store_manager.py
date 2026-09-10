@@ -19,13 +19,14 @@ class VectorStoreManager:
     """向量存储管理器"""
 
     def __init__(self):
-        """初始化向量存储管理器"""
+        """初始化向量存储管理器（惰性：首次使用时才连接 Milvus）"""
         self.vector_store = None
         self.collection_name = COLLECTION_NAME
-        self._initialize_vector_store()
+        self._initialized = False
 
     def _initialize_vector_store(self):
-        """初始化 Milvus VectorStore"""
+        """初始化 Milvus VectorStore（首次调用时连接，失败可重试）"""
+        self._initialized = True
         try:
             # 必须在 PyMilvus / langchain_milvus 访问 Collection 之前建立连接，
             # 否则会出现 ConnectionNotExistException: should create connection first.
@@ -62,6 +63,8 @@ class VectorStoreManager:
             logger.warning(f"Embedding 服务不可用，向量检索暂不可用: {e}")
             self.vector_store = None
         except Exception as e:
+            # 允许后续请求重试初始化（例如 Milvus 稍后启动）
+            self._initialized = False
             logger.error(f"VectorStore 初始化失败: {e}")
             raise
 
@@ -135,6 +138,9 @@ class VectorStoreManager:
         Raises:
             RuntimeError: 向量存储不可用（例如未配置有效的 DASHSCOPE_API_KEY）
         """
+        if not self._initialized:
+            self._initialize_vector_store()
+
         if self.vector_store is None:
             raise RuntimeError(
                 "向量存储不可用：请检查 DASHSCOPE_API_KEY 是否配置且有效（用于文本向量化）"

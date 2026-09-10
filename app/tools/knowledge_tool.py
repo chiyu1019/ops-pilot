@@ -7,7 +7,28 @@ from langchain_core.tools import tool
 from loguru import logger
 
 from app.config import config
+from app.services.hybrid_search_service import hybrid_search_service
 from app.services.vector_store_manager import vector_store_manager
+
+
+def _retrieve(query: str) -> List[Document]:
+    """按配置选择混合检索（向量 + BM25）或纯向量检索
+
+    混合检索失败（如 ES 不可用）时自动降级为纯向量检索，保证问答不中断。
+    """
+    if config.hybrid_enabled:
+        try:
+            return hybrid_search_service.search(query, k=config.rag_top_k)
+        except Exception as e:
+            logger.warning(f"混合检索失败，降级为纯向量检索: {e}")
+
+    # 纯向量检索（降级路径）
+    vector_store = vector_store_manager.get_vector_store()
+    retriever = vector_store.as_retriever(search_kwargs={"k": config.rag_top_k})
+    docs = retriever.invoke(query)
+    for doc in docs:
+        doc.metadata["_retrieval"] = "vector"
+    return docs
 
 
 @tool(response_format="content_and_artifact")
@@ -25,13 +46,8 @@ def retrieve_knowledge(query: str) -> Tuple[str, List[Document]]:
     try:
         logger.info(f"知识检索工具被调用: query='{query}'")
         
-        # 从向量存储中检索相关文档
-        vector_store = vector_store_manager.get_vector_store()
-        retriever = vector_store.as_retriever(
-            search_kwargs={"k": config.rag_top_k}
-        )
-        
-        docs = retriever.invoke(query)
+        # 检索相关文档（混合检索：向量 + BM25，RRF/归一化融合）
+        docs = _retrieve(query)
         
         if not docs:
             logger.warning("未检索到相关文档")
@@ -78,6 +94,9 @@ def format_docs(docs: List[Document]) -> str:
         if header_str:
             formatted += f"\n标题: {header_str}"
         formatted += f"\n来源: {source}"
+        retrieval = metadata.get("_retrieval")
+        if retrieval:
+            formatted += f"\n检索方式: {retrieval}"
         formatted += f"\n内容:\n{doc.page_content}\n"
         
         formatted_parts.append(formatted)

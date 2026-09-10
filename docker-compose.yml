@@ -133,6 +133,26 @@ services:
       retries: 5
     restart: unless-stopped
 
+
+  elasticsearch:
+    container_name: opspilot-elasticsearch
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.15.0
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+      - bootstrap.memory_lock=false
+    ports:
+      - "9200:9200"
+    volumes:
+      - ./volumes/elasticsearch:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:9200/_cluster/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+    restart: unless-stopped
+
   mock-prometheus:
     image: python:3.12-slim
     working_dir: /mock
@@ -161,6 +181,8 @@ services:
         condition: service_started
       postgres:
         condition: service_started
+      elasticsearch:
+        condition: service_healthy
     environment:
       # DashScope（.env 中配置 DASHSCOPE_API_KEY）
       DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:-}
@@ -178,6 +200,14 @@ services:
       # MCP（容器网络内服务名）
       MCP_CLS_URL: http://mcp-cls:8003/mcp
       MCP_MONITOR_URL: http://mcp-monitor:8004/mcp
+      # 混合检索（向量 + BM25 关键词，RRF/归一化融合）
+      HYBRID_ENABLED: ${HYBRID_ENABLED:-true}
+      ES_URL: http://elasticsearch:9200
+      ES_INDEX: ${ES_INDEX:-opspilot_knowledge}
+      HYBRID_FUSION: ${HYBRID_FUSION:-rrf}
+      HYBRID_RRF_K: ${HYBRID_RRF_K:-60}
+      HYBRID_RECALL_K: ${HYBRID_RECALL_K:-10}
+      HYBRID_ALPHA: ${HYBRID_ALPHA:-0.5}
       # 会话记忆后端：memory | redis | postgres（由 .env 的 MEMORY_BACKEND 控制）
       MEMORY_BACKEND: ${MEMORY_BACKEND:-memory}
       REDIS_URL: redis://redis:6379/0
