@@ -6,7 +6,7 @@ Planner 节点：制定执行计划
 from textwrap import dedent
 from typing import Dict, Any, List
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_qwq import ChatQwen
+from app.core.llm_client import create_chat_qwen
 from pydantic import BaseModel, Field
 from loguru import logger
 
@@ -119,10 +119,8 @@ async def planner(state: PlanExecuteState) -> Dict[str, Any]:
             experience_context = ""
 
         # 步骤4: 创建 LLM 并生成计划
-        llm = ChatQwen(
+        llm = create_chat_qwen(
             model=config.rag_model,
-            api_key=config.dashscope_api_key,
-            api_base=config.dashscope_api_base,
             temperature=0
         )
 

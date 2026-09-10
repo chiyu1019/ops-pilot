@@ -19,7 +19,7 @@ from app.core.checkpointer import aget_checkpointer
 from langgraph.graph.message import REMOVE_ALL_MESSAGES, add_messages
 from loguru import logger
 from typing_extensions import TypedDict
-from langchain_qwq import ChatQwen
+from app.core.llm_client import create_chat_qwen
 
 from app.config import config
 from app.tools import DEFAULT_LOCAL_AGENT_TOOLS
@@ -94,10 +94,8 @@ class RagAgentService:
         self.system_prompt = self._build_system_prompt()
 
 
-        self.model = ChatQwen(
+        self.model = create_chat_qwen(
             model=self.model_name,
-            api_key=config.dashscope_api_key,
-            api_base=config.dashscope_api_base,
             temperature=0.7,
             streaming=streaming,
         )

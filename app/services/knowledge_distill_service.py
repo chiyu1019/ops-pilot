@@ -13,7 +13,7 @@ from typing import Any, Optional
 
 from langchain_core.documents import Document
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_qwq import ChatQwen
+from app.core.llm_client import create_chat_qwen
 from loguru import logger
 
 from app.config import config
@@ -72,10 +72,8 @@ def _format_steps(past_steps: list) -> str:
 
 async def _summarize(alert_info: str, steps_info: str, report: str) -> str:
     """调用 LLM 生成知识条目 Markdown（独立函数便于测试替换）。"""
-    llm = ChatQwen(
+    llm = create_chat_qwen(
         model=config.rag_model,
-        api_key=config.dashscope_api_key,
-        api_base=config.dashscope_api_base,
         temperature=0,
     )
     result = await (DISTILL_PROMPT | llm).ainvoke(
