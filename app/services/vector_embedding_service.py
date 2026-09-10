@@ -36,7 +36,7 @@ class DashScopeEmbeddings(Embeddings):
         
         self.client = OpenAI(
             api_key=api_key,
-            base_url="https://dashscope.aliyuncs.com/compatible-mode/v1"
+            base_url=config.dashscope_api_base,
         )
         self.model = model
         self.dimensions = dimensions

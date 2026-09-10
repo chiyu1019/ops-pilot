@@ -50,6 +50,7 @@ async def executor(state: PlanExecuteState) -> Dict[str, Any]:
         llm = ChatQwen(
             model=config.rag_model,
             api_key=config.dashscope_api_key,
+            api_base=config.dashscope_api_base,
             temperature=0
         )
         llm_with_tools = llm.bind_tools(all_tools)

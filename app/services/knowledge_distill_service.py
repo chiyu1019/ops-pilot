@@ -75,6 +75,7 @@ async def _summarize(alert_info: str, steps_info: str, report: str) -> str:
     llm = ChatQwen(
         model=config.rag_model,
         api_key=config.dashscope_api_key,
+        api_base=config.dashscope_api_base,
         temperature=0,
     )
     result = await (DISTILL_PROMPT | llm).ainvoke(

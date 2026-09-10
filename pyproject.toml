@@ -30,7 +30,8 @@ dependencies = [
     "langchain-mcp-adapters>=0.2.1,<0.4.0",
     # mcp 2.x 移除了 langchain-mcp-adapters 依赖的 mcp.shared.context.RequestContext
     "mcp>=1.16.0,<2.0.0",
-    "fastmcp>=2.14.0",
+    # fastmcp 3.x + mcp 1.x 组合下 streamable-http 握手会返回 400，钉回 2.x
+    "fastmcp>=2.14.0,<3.0.0",
     "langchain-qwq>=0.3.4",
     "langgraph-checkpoint-redis>=0.5.0",
     "langgraph-checkpoint-postgres>=3.0.0",

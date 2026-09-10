@@ -133,6 +133,7 @@ async def replanner(state: PlanExecuteState) -> Dict[str, Any]:
         llm = ChatQwen(
             model=config.rag_model,
             api_key=config.dashscope_api_key,
+            api_base=config.dashscope_api_base,
             temperature=0
         )
         return await _generate_response(state, llm)
@@ -160,6 +161,7 @@ async def replanner(state: PlanExecuteState) -> Dict[str, Any]:
     llm = ChatQwen(
         model=config.rag_model,
         api_key=config.dashscope_api_key,
+        api_base=config.dashscope_api_base,
         temperature=0
     )
 

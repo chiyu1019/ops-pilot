@@ -168,6 +168,10 @@ services:
   app:
     build: .
     image: superbizagent:latest
+    # 直接加载 .env：用户改任何配置（模型/RAG/混合检索/记忆后端）都自动生效；
+    # 下方 environment 中的容器网络地址（milvus-standalone / elasticsearch / redis）优先级更高
+    env_file:
+      - .env
     depends_on:
       standalone:
         condition: service_healthy
@@ -198,7 +202,9 @@ services:
       CHUNK_MAX_SIZE: ${CHUNK_MAX_SIZE:-800}
       CHUNK_OVERLAP: ${CHUNK_OVERLAP:-100}
       # MCP（容器网络内服务名）
+      MCP_CLS_TRANSPORT: streamable-http
       MCP_CLS_URL: http://mcp-cls:8003/mcp
+      MCP_MONITOR_TRANSPORT: streamable-http
       MCP_MONITOR_URL: http://mcp-monitor:8004/mcp
       # 混合检索（向量 + BM25 关键词，RRF/归一化融合）
       HYBRID_ENABLED: ${HYBRID_ENABLED:-true}
