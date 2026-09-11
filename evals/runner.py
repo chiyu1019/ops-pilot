@@ -32,6 +32,7 @@ from app.config import config  # noqa: E402
 from app.services.aiops_service import aiops_service  # noqa: E402
 from evals.dataset import build_cases, task_text  # noqa: E402
 from evals.fixtures import FixtureRuntime, patch_tools  # noqa: E402
+from app.core.reliability import tool_result_cache  # noqa: E402
 from evals.metrics import RunMetricsCollector, build_langfuse_handler  # noqa: E402
 
 REPORT_DIR = REPO_ROOT / "reports"
@@ -161,7 +162,26 @@ async def main() -> int:
     parser.add_argument("--concurrency", type=int, default=3)
     parser.add_argument("--label", type=str, default="optimized")
     parser.add_argument("--only", type=str, default="", help="只跑指定用例 ID（逗号分隔）")
+    parser.add_argument(
+        "--mode",
+        type=str,
+        default="optimized",
+        choices=["baseline", "optimized"],
+        help="baseline=关闭工具缓存与上下文压缩；optimized=开启（默认）",
+    )
     args = parser.parse_args()
+
+    # 成本治理开关：用于 baseline / optimized 对比
+    if args.mode == "baseline":
+        config.reliability_tool_cache_enabled = False
+        config.reliability_context_compress_enabled = False
+        config.reliability_token_budget = 0
+        tool_result_cache.clear()
+    else:
+        config.reliability_tool_cache_enabled = True
+        config.reliability_context_compress_enabled = True
+        config.reliability_token_budget = config.reliability_token_budget or 60000
+        tool_result_cache.clear()
 
     cases = build_cases()
     if args.only:

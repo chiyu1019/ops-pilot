@@ -7,6 +7,7 @@ from textwrap import dedent
 from typing import Dict, Any, List
 from langchain_core.prompts import ChatPromptTemplate
 from app.core.llm_client import RetryingChatQwen, create_chat_qwen
+from app.core.reliability import compress_text
 from pydantic import BaseModel, Field
 from loguru import logger
 
@@ -244,9 +245,14 @@ async def _generate_response(state: PlanExecuteState, llm: RetryingChatQwen) -> 
     input_text = state.get("input", "")
     past_steps = state.get("past_steps", [])
 
-    # 格式化执行历史
+    # 格式化执行历史（按配置做上下文压缩，降低 Token 消耗）
+    max_chars = config.reliability_context_max_chars if config.reliability_context_compress_enabled else 0
+
+    def _maybe_compress(text: str) -> str:
+        return compress_text(text, max_chars) if max_chars else text
+
     execution_history = "\n\n".join([
-        f"### 步骤: {step}\n**结果:**\n{result}"
+        f"### 步骤: {step}\n**结果:**\n{_maybe_compress(result)}"
         for step, result in past_steps
     ])
 

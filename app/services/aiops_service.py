@@ -9,6 +9,7 @@ from typing import AsyncGenerator, Dict, Any, Optional
 from app.config import config
 from langgraph.graph import StateGraph, END
 from app.core.checkpointer import aget_checkpointer
+from app.core.observability import get_observability_callbacks
 from loguru import logger
 
 from app.agent.aiops import PlanExecuteState, planner, executor, replanner
@@ -153,11 +154,16 @@ class AIOpsService:
                 "diagnosis": {},
                 "verification": {},
                 "repair_rounds": 0,
+                "reliability": {},
             }
 
             # 流式执行工作流
+            # 观测回调：显式传入的 callbacks + 环境变量启用的 Langfuse
+            effective_callbacks = list(callbacks or []) + [
+                h for h in get_observability_callbacks() if h not in (callbacks or [])
+            ]
             config_dict = {
-                "callbacks": callbacks,
+                "callbacks": effective_callbacks or None,
                 "configurable": {
                     # 使用 thread_id 前缀隔离，避免与对话会话的 checkpoint 相互覆盖
                     # （checkpoint_ns 会让 get_state 报 Subgraph not found）

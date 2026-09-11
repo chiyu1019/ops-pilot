@@ -11,9 +11,37 @@ from loguru import logger
 
 from app.config import config
 from app.agent.aiops.evidence import extract_records_from_tool_messages
+from app.core.reliability import (
+    ReliabilityState,
+    compress_text,
+    estimate_tokens,
+    tool_call_fingerprint,
+    tool_result_cache,
+)
 from app.tools import DEFAULT_LOCAL_AGENT_TOOLS
 from app.agent.mcp_client import get_mcp_client_with_retry
 from .state import PlanExecuteState
+
+
+def _with_cache(tool):
+    """为工具增加结果缓存（保留原 args_schema，仅拦截执行）"""
+    import copy
+
+    clone = copy.copy(tool)
+    original_run = tool._run
+
+    def _cached_run(*args, **kwargs):
+        key = tool_call_fingerprint(getattr(tool, "name", "tool"), kwargs or {"args": args})
+        hit = tool_result_cache.get(key)
+        if hit is not None:
+            logger.info(f"工具缓存命中: {tool.name} (fingerprint={key})")
+            return hit
+        result = original_run(*args, **kwargs)
+        tool_result_cache.set(key, str(result))
+        return result
+
+    clone._run = _cached_run
+    return clone
 
 
 async def executor(state: PlanExecuteState) -> Dict[str, Any]:
@@ -44,8 +72,10 @@ async def executor(state: PlanExecuteState) -> Dict[str, Any]:
         mcp_tools = await mcp_client.get_tools()
         logger.info(f"可用工具数量: 本地 {len(local_tools)} + MCP {len(mcp_tools)}")
 
-        # 合并所有工具
+        # 合并所有工具（按配置启用结果缓存，减少重复调用与重复上下文）
         all_tools = local_tools + mcp_tools
+        if config.reliability_tool_cache_enabled:
+            all_tools = [_with_cache(t) for t in all_tools]
 
         # 创建 LLM（绑定工具）
         llm = create_chat_qwen(
@@ -89,8 +119,17 @@ async def executor(state: PlanExecuteState) -> Dict[str, Any]:
             tool_messages = await tool_node.ainvoke({"messages": messages})
             
             # 第三步：将工具结果返回给 LLM 生成最终答案
-            # 确定性抽取证据（不经过 LLM，保证可追溯）
+            # 确定性抽取证据（必须在压缩之前，保证证据来自原始返回）
             evidence_records = extract_records_from_tool_messages(tool_messages["messages"])
+
+            # 上下文压缩：只截断喂给 LLM 的文本，不影响证据链
+            compressed_saved = 0
+            if config.reliability_context_compress_enabled:
+                for _msg in tool_messages["messages"]:
+                    content = getattr(_msg, "content", None)
+                    if isinstance(content, str) and len(content) > config.reliability_context_max_chars:
+                        _msg.content = compress_text(content, config.reliability_context_max_chars)
+                        compressed_saved += len(content) - len(_msg.content)
 
             messages.extend(tool_messages["messages"])
             final_response = await llm_with_tools.ainvoke(messages)
@@ -103,15 +142,30 @@ async def executor(state: PlanExecuteState) -> Dict[str, Any]:
         logger.info(f"步骤执行完成，结果长度: {len(result)}")
 
         # 返回更新：移除已执行的步骤，添加执行历史与证据链
+        # 可靠性统计：缓存命中、压缩收益、估算 Token
+        prev = ReliabilityState.from_dict(state.get("reliability"))
+        prev.tool_calls += 1
+        prev.compressed_chars_saved += compressed_saved
+        if config.reliability_tool_cache_enabled:
+            stats = tool_result_cache.stats()
+            prev.tool_cache_hits = stats["hits"]
+            prev.tool_cache_misses = stats["misses"]
+        prev.estimated_tokens += estimate_tokens(result) + estimate_tokens(task)
+        if config.reliability_token_budget and prev.estimated_tokens > config.reliability_token_budget:
+            prev.budget_exceeded = True
+
         return {
             "plan": plan[1:],  # 移除第一个步骤
             "past_steps": [(task, result)],  # 使用 operator.add 追加
             "evidence": evidence_records,  # 确定性抽取的证据（operator.add 追加）
+            "reliability": prev.to_dict(),
         }
 
     except Exception as e:
         logger.error(f"执行步骤失败: {e}", exc_info=True)
+        prev = ReliabilityState.from_dict(state.get("reliability"))
         return {
             "plan": plan[1:],
             "past_steps": [(task, f"执行失败: {str(e)}")],
+            "reliability": prev.to_dict(),
         }

@@ -28,6 +28,12 @@ class Settings(BaseSettings):
     dashscope_api_key: str = ""  # 默认空字符串，实际使用需从环境变量加载
     # 支持百炼专属实例/自定义网关地址（如 ws-xxx.maas.aliyuncs.com）
     dashscope_api_base: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    # 可靠性约束与成本治理
+    reliability_tool_cache_enabled: bool = True      # 稳定工具结果缓存（按 tool_call_fingerprint）
+    reliability_context_compress_enabled: bool = True  # 工具结果/上下文压缩
+    reliability_context_max_chars: int = 600         # 单条工具结果进入上下文的字符上限
+    reliability_token_budget: int = 60000            # 估算 Token 预算，超限输出部分报告
+
     # 结构化诊断 + 证据链校验（DiagnosisClaim / Verifier）
     diagnosis_verify_enabled: bool = True
     diagnosis_max_repair_rounds: int = 1

@@ -32,3 +32,6 @@ class PlanExecuteState(TypedDict):
 
     # 补证轮次（防止无限补证）
     repair_rounds: int
+
+    # 可靠性/成本统计（预算、缓存命中、上下文压缩）
+    reliability: dict
