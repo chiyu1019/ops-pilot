@@ -74,6 +74,15 @@ async def run_case(case: Dict[str, Any], sem: asyncio.Semaphore, langfuse: Any) 
         strict_pass = bool(verification.get("strict_pass"))
         metrics = collector.snapshot()
 
+        # 根因正确性：期望关键词是否出现在根因 + 结论中（大小写不敏感）
+        expect_keywords = [str(k).lower() for k in (case.get("expect", {}).get("keywords") or [])]
+        root_cause = str(diagnosis.get("root_cause", "") or "")
+        claims_text = " ".join(str(cl.get("claim", "")) for cl in (diagnosis.get("claims") or []))
+        answer_text = f"{root_cause} {claims_text}".lower()
+        matched = [k for k in expect_keywords if k in answer_text]
+        keywords_hit = bool(matched) if expect_keywords else True
+        correctness = (len(matched) / len(expect_keywords)) if expect_keywords else 1.0
+
         return {
             "id": case["id"],
             "scenario": case["scenario"],
@@ -85,6 +94,11 @@ async def run_case(case: Dict[str, Any], sem: asyncio.Semaphore, langfuse: Any) 
             "supported_claims": int(verification.get("supported_claims", 0)),
             "invalid_evidence_ids": verification.get("invalid_evidence_ids", []),
             "matches_expectation": strict_pass == expect_verified,
+            "correctness": round(correctness, 4),
+            "keywords_matched": matched,
+            "keywords_expected": expect_keywords,
+            "root_cause": root_cause[:400],
+            "claims_text": claims_text[:600],
             "tokens": metrics["total_tokens"],
             "prompt_tokens": metrics["prompt_tokens"],
             "completion_tokens": metrics["completion_tokens"],
@@ -106,6 +120,9 @@ def summarize(results: List[Dict[str, Any]]) -> Dict[str, Any]:
 
     return {
         "cases": n,
+        "citation_compliance_rate": round(sum(1 for r in results if r["strict_pass"]) / n, 4) if n else 0.0,
+        "root_cause_correctness_rate": round(sum(1 for r in results if r.get("correctness", 0) >= 0.5) / n, 4) if n else 0.0,
+        "avg_keyword_recall": round(mean([r.get("correctness", 1.0) for r in results]), 4) if n else 0.0,
         "strict_pass_count": strict,
         "strict_pass_rate": round(strict / n, 4) if n else 0.0,
         "expectation_match_rate": round(sum(1 for r in results if r["matches_expectation"]) / n, 4) if n else 0.0,
@@ -163,6 +180,13 @@ async def main() -> int:
     parser.add_argument("--label", type=str, default="optimized")
     parser.add_argument("--only", type=str, default="", help="只跑指定用例 ID（逗号分隔）")
     parser.add_argument(
+        "--dataset",
+        type=str,
+        default="main",
+        choices=["main", "adversarial"],
+        help="main=34 个常规场景；adversarial=10 个对抗场景（含期望降级）",
+    )
+    parser.add_argument(
         "--mode",
         type=str,
         default="optimized",
@@ -183,7 +207,12 @@ async def main() -> int:
         config.reliability_token_budget = config.reliability_token_budget or 60000
         tool_result_cache.clear()
 
-    cases = build_cases()
+    if args.dataset == "adversarial":
+        from evals.dataset_adversarial import build_adversarial_cases
+
+        cases = build_adversarial_cases()
+    else:
+        cases = build_cases()
     if args.only:
         wanted = {x.strip() for x in args.only.split(",") if x.strip()}
         cases = [c for c in cases if c["id"] in wanted]
@@ -218,7 +247,9 @@ async def main() -> int:
     md_path = write_report(results, summary, args.label)
 
     print(f"\n完成 {len(results)} 个用例，总耗时 {elapsed:.1f}s\n")
-    print(f"严格证据校验通过率 : {summary['strict_pass_rate'] * 100:.2f}%  ({summary['strict_pass_count']}/{summary['cases']})")
+    print(f"证据引用合规率     : {summary['citation_compliance_rate'] * 100:.2f}%  ({summary['strict_pass_count']}/{summary['cases']})")
+    print(f"根因正确率         : {summary['root_cause_correctness_rate'] * 100:.2f}%  (关键词命中)")
+    print(f"平均关键词召回     : {summary['avg_keyword_recall'] * 100:.2f}%")
     print(f"与期望一致率       : {summary['expectation_match_rate'] * 100:.2f}%")
     print(f"证据覆盖率(全部)   : {summary['evidence_coverage_all'] * 100:.2f}%")
     print(f"证据覆盖率(有结论) : {summary['evidence_coverage_with_claims'] * 100:.2f}%")

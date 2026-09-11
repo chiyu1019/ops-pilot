@@ -24,23 +24,30 @@ from .state import PlanExecuteState
 
 
 def _with_cache(tool):
-    """为工具增加结果缓存（保留原 args_schema，仅拦截执行）"""
+    """为工具增加结果缓存（包装 func，保留 _run 签名与 args_schema）
+
+    注意：不能替换 _run —— LangChain 会依据 _run 签名决定是否传入 run_manager，
+    替换后会导致 "missing required keyword-only arg" 错误。
+    """
     import copy
 
-    clone = copy.copy(tool)
-    original_run = tool._run
+    original_func = getattr(tool, "func", None)
+    if original_func is None:  # 异步/自定义实现的工具不做缓存，保证行为不变
+        return tool
 
-    def _cached_run(*args, **kwargs):
+    clone = copy.copy(tool)
+
+    def _cached_func(*args, **kwargs):
         key = tool_call_fingerprint(getattr(tool, "name", "tool"), kwargs or {"args": args})
         hit = tool_result_cache.get(key)
         if hit is not None:
-            logger.info(f"工具缓存命中: {tool.name} (fingerprint={key})")
+            logger.info(f"工具缓存命中: {getattr(tool, 'name', 'tool')} (fingerprint={key})")
             return hit
-        result = original_run(*args, **kwargs)
+        result = original_func(*args, **kwargs)
         tool_result_cache.set(key, str(result))
         return result
 
-    clone._run = _cached_run
+    clone.func = _cached_func
     return clone
 
 
@@ -111,6 +118,7 @@ async def executor(state: PlanExecuteState) -> Dict[str, Any]:
 
         # 第二步：如果有工具调用，执行工具
         evidence_records = []
+        compressed_saved = 0  # 无论是否调用工具都必须先初始化（避免 NameError）
         if hasattr(llm_response, "tool_calls") and llm_response.tool_calls:
             logger.info(f"检测到 {len(llm_response.tool_calls)} 个工具调用")
             
@@ -123,7 +131,6 @@ async def executor(state: PlanExecuteState) -> Dict[str, Any]:
             evidence_records = extract_records_from_tool_messages(tool_messages["messages"])
 
             # 上下文压缩：只截断喂给 LLM 的文本，不影响证据链
-            compressed_saved = 0
             if config.reliability_context_compress_enabled:
                 for _msg in tool_messages["messages"]:
                     content = getattr(_msg, "content", None)
