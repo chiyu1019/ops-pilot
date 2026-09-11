@@ -12,6 +12,7 @@ from app.core.checkpointer import aget_checkpointer
 from loguru import logger
 
 from app.agent.aiops import PlanExecuteState, planner, executor, replanner
+from app.agent.aiops.diagnosis import diagnose
 
 
 # 后台任务集合（防止诊断/沉淀任务被 GC）
@@ -29,6 +30,7 @@ def _spawn_background(coro) -> None:
 NODE_PLANNER = "planner"
 NODE_EXECUTOR = "executor"
 NODE_REPLANNER = "replanner"
+NODE_DIAGNOSE = "diagnose"
 
 
 class AIOpsService:
@@ -54,6 +56,7 @@ class AIOpsService:
         workflow.add_node(NODE_PLANNER, planner)      # 制定计划
         workflow.add_node(NODE_EXECUTOR, executor)  # 执行步骤
         workflow.add_node(NODE_REPLANNER, replanner)  # 重新规划
+        workflow.add_node(NODE_DIAGNOSE, diagnose)  # 证据校验 + 结构化诊断
 
         # 设置入口点
         workflow.set_entry_point(NODE_PLANNER)
@@ -65,10 +68,10 @@ class AIOpsService:
         # replanner 的条件边
         def should_continue(state: PlanExecuteState) -> str:
             """判断是否继续执行"""
-            # 如果已经生成了最终响应，结束
+            # 如果已经生成草稿报告，进入证据校验节点
             if state.get("response"):
-                logger.info("已生成最终响应，结束流程")
-                return END
+                logger.info("已生成草稿报告，进入证据校验")
+                return NODE_DIAGNOSE
 
             # 如果还有计划步骤，继续执行
             plan = state.get("plan", [])
@@ -76,16 +79,33 @@ class AIOpsService:
                 logger.info(f"继续执行，剩余 {len(plan)} 个步骤")
                 return NODE_EXECUTOR
 
-            # 计划为空但没有响应，返回 replanner 生成响应
-            logger.info("计划执行完毕，生成最终响应")
-            return END
+            # 计划为空但没有响应，也进入校验节点（会产出安全报告）
+            logger.info("计划执行完毕，进入证据校验")
+            return NODE_DIAGNOSE
 
         workflow.add_conditional_edges(
             NODE_REPLANNER,
             should_continue,
             {
                 NODE_EXECUTOR: NODE_EXECUTOR,
-                END: END
+                NODE_DIAGNOSE: NODE_DIAGNOSE,
+            }
+        )
+
+        # diagnose 的条件边：需要补证 -> executor，否则结束
+        def after_diagnose(state: PlanExecuteState) -> str:
+            if state.get("plan") and not state.get("response"):
+                logger.info("证据不足，回到 Executor 补证一轮")
+                return NODE_EXECUTOR
+            logger.info("诊断校验流程结束")
+            return END
+
+        workflow.add_conditional_edges(
+            NODE_DIAGNOSE,
+            after_diagnose,
+            {
+                NODE_EXECUTOR: NODE_EXECUTOR,
+                END: END,
             }
         )
 
@@ -107,6 +127,7 @@ class AIOpsService:
         user_input: str,
         session_id: str = "default",
         alert: Optional[Dict[str, Any]] = None,
+        callbacks: Optional[list] = None,
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """
         执行 Plan-Execute-Replan 流程
@@ -127,11 +148,16 @@ class AIOpsService:
                 "input": user_input,
                 "plan": [],
                 "past_steps": [],
-                "response": ""
+                "response": "",
+                "evidence": [],
+                "diagnosis": {},
+                "verification": {},
+                "repair_rounds": 0,
             }
 
             # 流式执行工作流
             config_dict = {
+                "callbacks": callbacks,
                 "configurable": {
                     # 使用 thread_id 前缀隔离，避免与对话会话的 checkpoint 相互覆盖
                     # （checkpoint_ns 会让 get_state 报 Subgraph not found）
@@ -157,6 +183,9 @@ class AIOpsService:
 
                     elif node_name == NODE_REPLANNER:
                         yield self._format_replanner_event(node_output)
+
+                    elif node_name == NODE_DIAGNOSE:
+                        yield self._format_diagnose_event(node_output)
 
             # 获取最终状态（失败不影响已生成的报告）
             final_state = None
@@ -306,6 +335,30 @@ class AIOpsService:
                 }
             else:
                 yield event
+
+    def _format_diagnose_event(self, state: Dict | None) -> Dict:
+        """格式化 diagnose 节点事件（结构化诊断 + 证据校验结果）"""
+        if not state:
+            return {
+                "type": "status",
+                "stage": "diagnose",
+                "message": "证据校验节点运行中"
+            }
+
+        diagnosis = state.get("diagnosis") or {}
+        verification = state.get("verification") or {}
+        passed = bool(verification.get("strict_pass"))
+        return {
+            "type": "diagnosis",
+            "stage": "evidence_verified" if passed else "evidence_insufficient",
+            "message": (
+                "证据链校验通过"
+                if passed
+                else f"证据链校验未通过（覆盖率 {float(verification.get('coverage', 0)) * 100:.1f}%），已按策略补证或降级"
+            ),
+            "diagnosis": diagnosis,
+            "verification": verification,
+        }
 
     def _format_planner_event(self, state: Dict | None) -> Dict:
         """格式化 Planner 节点事件"""

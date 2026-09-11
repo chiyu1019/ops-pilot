@@ -22,3 +22,13 @@ class PlanExecuteState(TypedDict):
     
     # 最终响应/报告
     response: str
+
+    # 证据链（每次工具调用产出的 EvidenceRecord，追加式）
+    evidence: Annotated[List[dict], operator.add]
+
+    # 结构化诊断与校验结果
+    diagnosis: dict
+    verification: dict
+
+    # 补证轮次（防止无限补证）
+    repair_rounds: int

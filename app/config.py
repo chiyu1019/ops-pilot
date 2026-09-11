@@ -28,6 +28,10 @@ class Settings(BaseSettings):
     dashscope_api_key: str = ""  # 默认空字符串，实际使用需从环境变量加载
     # 支持百炼专属实例/自定义网关地址（如 ws-xxx.maas.aliyuncs.com）
     dashscope_api_base: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    # 结构化诊断 + 证据链校验（DiagnosisClaim / Verifier）
+    diagnosis_verify_enabled: bool = True
+    diagnosis_max_repair_rounds: int = 1
+
     # LLM 瞬时错误重试（专属实例偶发 403/429/5xx 时自动重试）
     llm_max_retries: int = 3
     llm_retry_delay: float = 1.0

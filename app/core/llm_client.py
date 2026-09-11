@@ -40,6 +40,8 @@ RETRYABLE_HINTS = (
     "timeout",
     "timed out",
     "connection reset",
+    # LLM SDK 偶发解析异常（例如流式响应缺少 description 字段），重试即可恢复
+    "keyerror",
 )
 
 

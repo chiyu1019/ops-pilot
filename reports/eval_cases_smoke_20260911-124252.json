@@ -1,0 +1,63 @@
+{
+  "generated_at": "20260911-124252",
+  "label": "smoke",
+  "summary": {
+    "cases": 2,
+    "strict_pass_count": 1,
+    "strict_pass_rate": 0.5,
+    "expectation_match_rate": 0.5,
+    "evidence_coverage_all": 0.5,
+    "evidence_coverage_with_claims": 1.0,
+    "degradation_cases": 0,
+    "degradation_correct_rate": 0.0,
+    "avg_tokens": 31978,
+    "total_tokens": 63956,
+    "avg_llm_calls": 12.5,
+    "avg_tool_calls": 6,
+    "avg_node_count": 0,
+    "avg_duration_s": 97.05,
+    "errors": 1
+  },
+  "results": [
+    {
+      "id": "cpu_high-01",
+      "scenario": "cpu_high",
+      "expect_verified": true,
+      "strict_pass": true,
+      "status": "verified",
+      "coverage": 1.0,
+      "claims": 5,
+      "supported_claims": 5,
+      "invalid_evidence_ids": [],
+      "matches_expectation": true,
+      "tokens": 62168,
+      "prompt_tokens": 53113,
+      "completion_tokens": 9055,
+      "llm_calls": 24,
+      "tool_calls": 11,
+      "node_count": 0,
+      "duration_s": 181.59,
+      "error": null
+    },
+    {
+      "id": "cpu_high-02",
+      "scenario": "cpu_high",
+      "expect_verified": true,
+      "strict_pass": false,
+      "status": "error",
+      "coverage": 0.0,
+      "claims": 0,
+      "supported_claims": 0,
+      "invalid_evidence_ids": [],
+      "matches_expectation": false,
+      "tokens": 1788,
+      "prompt_tokens": 1140,
+      "completion_tokens": 648,
+      "llm_calls": 1,
+      "tool_calls": 1,
+      "node_count": 0,
+      "duration_s": 12.5,
+      "error": "任务执行出错: \"'description'\""
+    }
+  ]
+}

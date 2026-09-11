@@ -10,6 +10,7 @@ from langgraph.prebuilt import ToolNode
 from loguru import logger
 
 from app.config import config
+from app.agent.aiops.evidence import extract_records_from_tool_messages
 from app.tools import DEFAULT_LOCAL_AGENT_TOOLS
 from app.agent.mcp_client import get_mcp_client_with_retry
 from .state import PlanExecuteState
@@ -79,6 +80,7 @@ async def executor(state: PlanExecuteState) -> Dict[str, Any]:
         logger.info(f"LLM 响应类型: {type(llm_response)}")
 
         # 第二步：如果有工具调用，执行工具
+        evidence_records = []
         if hasattr(llm_response, "tool_calls") and llm_response.tool_calls:
             logger.info(f"检测到 {len(llm_response.tool_calls)} 个工具调用")
             
@@ -87,6 +89,9 @@ async def executor(state: PlanExecuteState) -> Dict[str, Any]:
             tool_messages = await tool_node.ainvoke({"messages": messages})
             
             # 第三步：将工具结果返回给 LLM 生成最终答案
+            # 确定性抽取证据（不经过 LLM，保证可追溯）
+            evidence_records = extract_records_from_tool_messages(tool_messages["messages"])
+
             messages.extend(tool_messages["messages"])
             final_response = await llm_with_tools.ainvoke(messages)
             result = final_response.content if hasattr(final_response, 'content') else str(final_response)
@@ -97,10 +102,11 @@ async def executor(state: PlanExecuteState) -> Dict[str, Any]:
 
         logger.info(f"步骤执行完成，结果长度: {len(result)}")
 
-        # 返回更新：移除已执行的步骤，添加执行历史
+        # 返回更新：移除已执行的步骤，添加执行历史与证据链
         return {
             "plan": plan[1:],  # 移除第一个步骤
             "past_steps": [(task, result)],  # 使用 operator.add 追加
+            "evidence": evidence_records,  # 确定性抽取的证据（operator.add 追加）
         }
 
     except Exception as e:
