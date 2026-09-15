@@ -17,6 +17,7 @@ RUN pip install --no-cache-dir --upgrade pip && \
 
 # 再复制源码（业务代码变更只影响这些层）
 COPY app ./app
+COPY notification ./notification
 COPY mcp_servers ./mcp_servers
 COPY static ./static
 COPY aiops-docs ./aiops-docs
