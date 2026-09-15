@@ -458,7 +458,7 @@ docker compose down
 - 首次克隆后执行 `copy .env.example .env` 并填写真实值
 - 若曾误提交过密钥，请立即在云控制台轮换该 Key
 
-## 📌 当前状态说明（面试透明性）
+## 📌 当前状态说明
 
 - **对话 / RAG**：真实实现（Milvus + DashScope embedding + LangChain Agent + 多轮记忆）
 - **AIOps 诊断**：Plan-Execute-Replan 真实编排；CLS 日志与监控 MCP 当前返回模拟数据，可替换为真实 API（见 `mcp_servers/README.md`）；Prometheus 告警查询为真实 HTTP 调用
