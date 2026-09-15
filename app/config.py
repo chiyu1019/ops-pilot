@@ -98,6 +98,13 @@ class Settings(BaseSettings):
     # 闭环沉淀（诊断结果回写知识库）
     knowledge_distill_enabled: bool = True
 
+    # 通知（飞书机器人；只有 source=alert_auto 的自动告警诊断会推送）
+    notification_enabled: bool = True
+    feishu_webhook_url: str = ""          # 为空则跳过发送（打 warning，不影响 Agent）
+    feishu_secret: str = ""               # 群机器人开启"签名校验"时填写，否则留空
+    feishu_timeout: float = 5.0
+    notification_idempotency_ttl: int = 900   # 幂等窗口（秒），同会话同告警同状态只发一次
+
     @property
     def mcp_servers(self) -> Dict[str, Dict[str, Any]]:
         """获取完整的 MCP 服务器配置"""

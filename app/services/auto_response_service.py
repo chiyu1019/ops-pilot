@@ -136,7 +136,7 @@ async def _run_diagnosis(alert: dict, task_input: str, session_id: str) -> None:
     final_report = ""
     try:
         async for event in aiops_service.execute(
-            task_input, session_id=session_id, alert=alert
+            task_input, session_id=session_id, alert=alert, source="alert_auto"
         ):
             if event.get("type") == "report":
                 final_report = event.get("report", "") or final_report

@@ -593,3 +593,64 @@ HYBRID_ALPHA=0.5             # normalize 模式下向量权重
 python scripts/eval_hybrid.py --top-k 3 --recall-k 10
 python scripts/eval_hybrid.py --questions tests/data/hybrid_eval_keyword.json
 ```
+
+## 🔔 飞书通知（告警自动诊断结果推送）
+
+诊断完成后可自动把结构化诊断结果推送到飞书群，形成「**告警 → Agent诊断 → 飞书通知 → 人工处理**」的闭环。
+
+### 触发规则（重要）
+
+| 入口 | source | 是否推送飞书 |
+|---|---|---|
+| 告警自动响应（Webhook / 轮询触发） | `alert_auto` | ✅ 推送 |
+| 前端 Chat / 智能运维按钮（用户主动） | `user_chat` | ❌ 只返回前端展示 |
+
+### 配置
+
+```bash
+# 飞书群 → 设置 → 群机器人 → 添加机器人 → 自定义机器人 → 复制 Webhook 地址
+FEISHU_WEBHOOK_URL=https://open.feishu.cn/open-apis/bot/v2/hook/xxxx
+# 若机器人开启了"签名校验"，填写密钥；否则留空
+FEISHU_SECRET=
+FEISHU_TIMEOUT=5.0
+NOTIFICATION_ENABLED=true
+# 幂等窗口（秒）：同一会话 + 同一告警 + 同一状态在该窗口内只发一次
+NOTIFICATION_IDEMPOTENCY_TTL=900
+```
+
+未配置 `FEISHU_WEBHOOK_URL` 时：打 warning 日志、跳过发送、**不影响 Agent 运行**。
+
+### 消息形态
+
+优先使用 **interactive 卡片**，包含 9 个字段：告警名称 / 告警级别 / 影响服务 / 故障现象 / 分析结论 / 关键证据 / 处理建议 / Agent执行状态 / 生成时间。
+
+- 卡片头部颜色按级别映射（critical=红、warning=橙、info=蓝）
+- 状态为 `hypothesis` / `safe_report` 时头部置灰并在标题标注，提示人工复核
+- 关键证据来自证据链 `evidence_id` 映射（可追溯到具体工具调用）
+- 长文本自动截断，避免超出飞书长度限制
+
+### 架构
+
+```
+Agent（Planner/Executor/Replanner/Diagnose）
+        │  仅 alert_auto 触发
+        ▼
+notification/          ← 独立通知模块（不侵入 Agent 节点）
+├── __init__.py        # 导出 notification_service
+├── schemas.py         # DiagnosisNotification / NotificationResult
+├── feishu.py          # 卡片渲染 + Webhook 发送 + 签名
+└── service.py         # 渠道注册 / 来源过滤 / 幂等保护
+        ▼
+FeishuWebhook
+```
+
+- 注入点：`aiops_service.execute()` 收尾处（与知识沉淀并列），**不在 Planner/Executor/Replanner/MCP 阶段发送**
+- 通知异常全部被捕获：日志 `feishu notification failed`，主流程照常返回诊断报告
+- 幂等保护：同一 (来源, 会话, 告警, 状态) 在 TTL 窗口内只发送一次
+- 日志关键字：成功 `feishu notification sent successfully`，失败 `feishu notification failed`（便于接入 Langfuse 观测）
+
+### 验证
+
+```bash
+pytest tests/test_feishu_notification.py tests/test_notification_integration.py -q
+```

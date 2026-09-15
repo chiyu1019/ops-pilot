@@ -129,6 +129,7 @@ class AIOpsService:
         session_id: str = "default",
         alert: Optional[Dict[str, Any]] = None,
         callbacks: Optional[list] = None,
+        source: str = "user_chat",
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """
         执行 Plan-Execute-Replan 流程
@@ -229,6 +230,21 @@ class AIOpsService:
                     distill(alert, user_input, past_steps, final_response)
                 )
 
+            # 飞书通知：仅自动告警入口推送（source=alert_auto）
+            # 用户对话入口（source=user_chat）只返回前端展示，不推送
+            if config.notification_enabled and final_state and final_state.values and source == "alert_auto":
+                from notification import notification_service
+
+                _spawn_background(
+                    notification_service.notify_diagnosis(
+                        state=dict(final_state.values),
+                        alert=alert,
+                        task_input=user_input,
+                        session_id=session_id,
+                        source=source,
+                    )
+                )
+
         except Exception as e:
             logger.error(f"[会话 {session_id}] 任务执行失败: {e}", exc_info=True)
             yield {
@@ -239,7 +255,8 @@ class AIOpsService:
 
     async def diagnose(
         self,
-        session_id: str = "default"
+        session_id: str = "default",
+        source: str = "user_chat",
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """
         AIOps 诊断接口（兼容旧接口）
@@ -326,7 +343,7 @@ class AIOpsService:
                 - 所有内容必须基于工具查询的真实数据，严禁编造
                 - 如果某个步骤失败，在结论中如实说明，不要跳过""")
 
-        async for event in self.execute(aiops_task, session_id):
+        async for event in self.execute(aiops_task, session_id, source=source):
             # 转换事件格式以兼容旧的 API
             if event.get("type") == "complete":
                 # 将 response 包装为 diagnosis 格式
