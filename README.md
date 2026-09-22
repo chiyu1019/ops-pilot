@@ -563,35 +563,50 @@ HYBRID_VECTOR_WEIGHT=0.7     # RRF 中向量权重（BM25 占 1-0.7）
 HYBRID_ALPHA=0.5             # normalize 模式下向量权重
 ```
 
-### 实测数据（本项目，2026-09-10）
+### 实测数据（本项目，2026-09-22）
 
-语义型评测集（11 题，`tests/data/rag_eval_questions.json`）：
+评测环境：真实 Milvus + Elasticsearch 索引（42 篇文档 / 86 个分片，含 15 篇强干扰文档），
+配置 `HYBRID_FUSION=rrf`、`HYBRID_VECTOR_WEIGHT=0.7`、`HYBRID_RECALL_K=10`。
 
-| 模式 | 命中 | 准确率 | 平均耗时 |
-|------|------|--------|----------|
-| vector（纯向量） | 11/11 | 100.0% | 218ms |
-| bm25（纯关键词） | 10/11 | 90.9% | 51ms |
-| hybrid-rrf | 11/11 | 100.0% | 245ms |
-| hybrid-normalize | 11/11 | 100.0% | 294ms |
+**Golden Set（45 题，`tests/data/golden_set_45.json`）**
 
-关键词型评测集（8 题，`tests/data/hybrid_eval_keyword.json`）：
+| 模式 | Recall@1 | Recall@3 | Recall@5 | 平均耗时 |
+|------|----------|----------|----------|----------|
+| vector（纯向量） | 84.4% | 97.8% | 100.0% | 187ms |
+| bm25（纯关键词） | 55.6% | 82.2% | 88.9% | 57ms |
+| hybrid-rrf（向量权重 0.7） | 82.2% | 95.6% | 100.0% | 199ms |
 
-| 模式 | 命中 | 准确率 | 平均耗时 |
-|------|------|--------|----------|
-| vector | 8/8 | 100.0% | 205ms |
-| bm25 | 6/8 | 75.0% | 51ms |
-| hybrid-rrf（等权 0.5） | 7/8 | 87.5% | 270ms |
-| **hybrid-rrf（向量权重 0.7）** | **8/8** | **100.0%** | **239ms** |
-| hybrid-normalize | 8/8 | 100.0% | 276ms |
+**高难度集（14 题，`tests/data/hard_queries.json`：改写型 / 易混淆型 / 多跳型）**
 
-调参结论：**等权 RRF 会被 BM25 的噪声拖累（87.5%），把向量权重调到 0.7 后恢复到 100%**，
-这也是当前默认值。BM25 单独使用准确率最低，但**延迟只有约 1/4**，适合作为召回补充而非主力。
+| 模式 | Recall@1 | Recall@3 | Recall@5 | 平均耗时 |
+|------|----------|----------|----------|----------|
+| vector（纯向量） | 90.9% | 100.0% | 100.0% | 300ms |
+| bm25（纯关键词） | 18.2% | 27.3% | 36.4% | 72ms |
+| hybrid-rrf（向量权重 0.7） | 36.4% | 72.7% | 90.9% | 205ms |
+
+**向量权重扫描（高难度集，`--modes hybrid-rrf`）**
+
+| HYBRID_VECTOR_WEIGHT | 0.5 | 0.7 | 0.85 | 0.95 |
+|----------------------|-----|-----|------|------|
+| Recall@3 | 63.6% | 72.7% | 72.7% | 100.0% |
+
+调参结论：
+
+- 45 题 Golden Set 上三种模式 **Recall@5 都是 100%**，指标已饱和、看不出差异；换成改写型 / 易混淆型的高难度集差距才暴露出来
+- **BM25 延迟最低（约 57ms，只有向量检索的 1/3）**，但对改写型提问几乎失效（高难度集 Recall@3 仅 27.3%），只能作为召回补充，不能当主力
+- **混合检索会被 BM25 的噪声拖累**：向量权重 0.7 时高难度集 Recall@3 只有 72.7%，把 `HYBRID_VECTOR_WEIGHT` 提到 0.95 才追平纯向量（100%）。当前默认仍是 0.7（通用场景更均衡），高难度场景可在 `.env` 中调高
+- 单次运行存在 1~2 题的波动（Recall@1 最明显），结论看趋势、不看单点
+
+> 早先的 11 题语义集（`tests/data/rag_eval_questions.json`）与 8 题关键词集（`tests/data/hybrid_eval_keyword.json`）仍保留在仓库，可用 `--questions` 参数复现。
 
 复现命令：
 
 ```bash
-python scripts/eval_hybrid.py --top-k 3 --recall-k 10
-python scripts/eval_hybrid.py --questions tests/data/hybrid_eval_keyword.json
+python scripts/eval_recall.py --save
+python scripts/eval_recall.py --questions tests/data/hard_queries.json --save
+
+# 权重扫描（Windows PowerShell 用 $env:HYBRID_VECTOR_WEIGHT="0.95"）
+HYBRID_VECTOR_WEIGHT=0.95 python scripts/eval_recall.py --questions tests/data/hard_queries.json --modes hybrid-rrf
 ```
 
 ## 🔔 飞书通知（告警自动诊断结果推送）
