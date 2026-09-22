@@ -99,6 +99,7 @@ async def run_case(case: Dict[str, Any], sem: asyncio.Semaphore, langfuse: Any) 
             "keywords_expected": expect_keywords,
             "root_cause": root_cause[:400],
             "claims_text": claims_text[:600],
+            "suggestions": " ".join(str(x) for x in (diagnosis.get("recommendations") or []))[:600],
             "tokens": metrics["total_tokens"],
             "prompt_tokens": metrics["prompt_tokens"],
             "completion_tokens": metrics["completion_tokens"],

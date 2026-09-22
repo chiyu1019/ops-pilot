@@ -1,0 +1,160 @@
+{
+  "generated_at": "20260922-194258",
+  "dataset": "main",
+  "summary": {
+    "cases": 12,
+    "rca_accuracy": 0.5,
+    "evidence_coverage_rate": 0.5,
+    "suggestion_usability_rate": 0.0,
+    "overclaim_rate": 0.5,
+    "keyword_hit_rate": 0.3,
+    "avg_tokens": 18823.8,
+    "elapsed_s": 349.8
+  },
+  "verdicts": [
+    {
+      "root_cause_correct": null,
+      "evidence_covered": null,
+      "suggestion_usable": null,
+      "overclaim": null,
+      "reason": "judge_error: AttributeError",
+      "id": "cpu_high-01",
+      "scenario": "cpu_high",
+      "expect_verified": true,
+      "keyword_hit": false,
+      "tokens": 17372
+    },
+    {
+      "root_cause_correct": null,
+      "evidence_covered": null,
+      "suggestion_usable": null,
+      "overclaim": null,
+      "reason": "judge_error: AttributeError",
+      "id": "cpu_high-02",
+      "scenario": "cpu_high",
+      "expect_verified": true,
+      "keyword_hit": false,
+      "tokens": 13405
+    },
+    {
+      "root_cause_correct": null,
+      "evidence_covered": null,
+      "suggestion_usable": null,
+      "overclaim": null,
+      "reason": "judge_error: AttributeError",
+      "id": "memory_high-01",
+      "scenario": "memory_high",
+      "expect_verified": true,
+      "keyword_hit": false,
+      "tokens": 16154
+    },
+    {
+      "root_cause_correct": null,
+      "evidence_covered": null,
+      "suggestion_usable": null,
+      "overclaim": null,
+      "reason": "judge_error: AttributeError",
+      "id": "memory_high-02",
+      "scenario": "memory_high",
+      "expect_verified": true,
+      "keyword_hit": false,
+      "tokens": 29551
+    },
+    {
+      "root_cause_correct": null,
+      "evidence_covered": null,
+      "suggestion_usable": null,
+      "overclaim": null,
+      "reason": "judge_error: AttributeError",
+      "id": "disk_high-01",
+      "scenario": "disk_high",
+      "expect_verified": true,
+      "keyword_hit": true,
+      "tokens": 31977
+    },
+    {
+      "root_cause_correct": null,
+      "evidence_covered": null,
+      "suggestion_usable": null,
+      "overclaim": null,
+      "reason": "judge_error: AttributeError",
+      "id": "disk_high-02",
+      "scenario": "disk_high",
+      "expect_verified": true,
+      "keyword_hit": false,
+      "tokens": 16986
+    },
+    {
+      "root_cause_correct": null,
+      "evidence_covered": null,
+      "suggestion_usable": null,
+      "overclaim": null,
+      "reason": "judge_error: AttributeError",
+      "id": "service_unavailable-01",
+      "scenario": "service_unavailable",
+      "expect_verified": true,
+      "keyword_hit": true,
+      "tokens": 17868
+    },
+    {
+      "root_cause_correct": true,
+      "evidence_covered": true,
+      "suggestion_usable": false,
+      "overclaim": false,
+      "reason": "根因（依赖连接失败）和证据（connection refused, 健康检查失败）均与真值一致且覆盖充分；但Agent诊断结果中完全缺失处置建议，未包含真值要求的“检查依赖服务与端口”或“回滚或重启”等关键动作。",
+      "id": "service_unavailable-02",
+      "scenario": "service_unavailable",
+      "expect_verified": true,
+      "keyword_hit": true,
+      "tokens": 15767
+    },
+    {
+      "root_cause_correct": null,
+      "evidence_covered": null,
+      "suggestion_usable": null,
+      "overclaim": null,
+      "reason": "judge_error: AttributeError",
+      "id": "slow_response-01",
+      "scenario": "slow_response",
+      "expect_verified": true,
+      "keyword_hit": false,
+      "tokens": 17184
+    },
+    {
+      "root_cause_correct": null,
+      "evidence_covered": null,
+      "suggestion_usable": null,
+      "overclaim": null,
+      "reason": "judge_error: AttributeError",
+      "id": "slow_response-02",
+      "scenario": "slow_response",
+      "expect_verified": true,
+      "keyword_hit": false,
+      "tokens": 27634
+    },
+    {
+      "root_cause_correct": false,
+      "evidence_covered": false,
+      "suggestion_usable": false,
+      "overclaim": true,
+      "reason": "标准答案明确标注为no_evidence场景，要求不给出确定性根因并建议人工复核；Agent却虚构了HighCPUUsage告警作为确定性根因，且未包含人工复核建议，属于严重过度断言和事实错误。",
+      "id": "no_evidence-01",
+      "scenario": "no_evidence",
+      "expect_verified": false,
+      "keyword_hit": null,
+      "tokens": 10913
+    },
+    {
+      "root_cause_correct": null,
+      "evidence_covered": null,
+      "suggestion_usable": null,
+      "overclaim": null,
+      "reason": "judge_error: AttributeError",
+      "id": "no_evidence-02",
+      "scenario": "no_evidence",
+      "expect_verified": false,
+      "keyword_hit": null,
+      "tokens": 11074
+    }
+  ]
+}

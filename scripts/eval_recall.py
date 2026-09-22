@@ -82,6 +82,16 @@ def evaluate(questions: List[Dict[str, Any]], fn: Callable, max_k: int) -> Dict[
     latencies: List[float] = []
     details: List[Dict[str, Any]] = []
     per_category: Dict[str, Dict[str, int]] = {}
+    no_answer_cases: List[Dict[str, Any]] = []
+
+    # 「知识库外」题目单独处理：它们的正确行为是"检索不到"，不计入 Recall 分母
+    eval_questions = []
+    for q in questions:
+        if q.get("expect_no_answer"):
+            no_answer_cases.append(q)
+        else:
+            eval_questions.append(q)
+    questions = eval_questions
 
     for q in questions:
         t0 = time.perf_counter()
@@ -126,7 +136,35 @@ def evaluate(questions: List[Dict[str, Any]], fn: Callable, max_k: int) -> Dict[
         "avg_ms": round(sum(latencies) / n * 1000, 2) if n else 0.0,
         "per_category": per_category,
         "details": details,
+        "no_answer_count": len(no_answer_cases),
+        "no_answer_ids": [q.get("id", "") for q in no_answer_cases],
     }
+
+
+def score_analysis(questions: List[Dict[str, Any]]) -> None:
+    """对比「知识库内问题」与「知识库外问题」的 Top1 相似度分布，为阈值设定提供依据"""
+    from app.services.vector_store_manager import vector_store_manager
+
+    in_kb, no_kb = [], []
+    for q in questions:
+        try:
+            pairs = vector_store_manager.similarity_search_with_score(q["question"], k=1)
+            if not pairs:
+                continue
+            sim = 1.0 / (1.0 + float(pairs[0][1]))
+        except Exception:
+            continue
+        (no_kb if q.get("expect_no_answer") else in_kb).append(sim)
+
+    def _stat(xs):
+        return (min(xs), sum(xs) / len(xs), max(xs)) if xs else (0, 0, 0)
+
+    print("\nTop1 向量相似度分布（用于设定召回阈值）：")
+    for label, xs in (("知识库内问题", in_kb), ("知识库外问题", no_kb)):
+        lo, avg, hi = _stat(xs)
+        print(f"  {label:<10} n={len(xs):<3} min={lo:.4f}  avg={avg:.4f}  max={hi:.4f}")
+    if in_kb and no_kb:
+        print(f"  → 建议阈值区间：知识库外最大值 {max(no_kb):.4f} ~ 知识库内最小值 {min(in_kb):.4f}")
 
 
 def print_table(results: Dict[str, Dict[str, Any]], max_k: int) -> None:
@@ -148,6 +186,7 @@ def main() -> int:
     parser.add_argument("--max-k", type=int, default=8)
     parser.add_argument("--modes", type=str, default="vector,bm25,hybrid-rrf")
     parser.add_argument("--save", action="store_true", help="输出 JSON/Markdown 报告到 reports/")
+    parser.add_argument("--score-report", action="store_true", help="额外输出 Top1 相似度分布（阈值分析）")
     args = parser.parse_args()
 
     questions = load_questions(args.questions)
@@ -157,6 +196,9 @@ def main() -> int:
     print(f"RAG Recall@K 评测  |  评测集={args.questions.name}  题量={len(questions)}")
     print(f"融合方式={config.hybrid_fusion}  向量权重={config.hybrid_vector_weight}  RRF_k={config.hybrid_rrf_k}")
     print("=" * 78 + "\n")
+
+    if args.score_report:
+        score_analysis(questions)
 
     results: Dict[str, Dict[str, Any]] = {}
     for mode in modes:

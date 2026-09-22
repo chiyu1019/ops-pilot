@@ -1,0 +1,160 @@
+{
+  "generated_at": "20260922-195421",
+  "dataset": "main",
+  "summary": {
+    "cases": 12,
+    "rca_accuracy": 0.5833,
+    "evidence_coverage_rate": 0.6667,
+    "suggestion_usability_rate": 0.0,
+    "overclaim_rate": 1.0,
+    "keyword_hit_rate": 0.1,
+    "avg_tokens": 18967.3,
+    "elapsed_s": 640.3
+  },
+  "verdicts": [
+    {
+      "root_cause_correct": true,
+      "evidence_covered": true,
+      "suggestion_usable": false,
+      "overclaim": false,
+      "reason": "根因分析准确命中CPU使用率过高及进程资源占用方向；关键证据明确引用了CPU均值88.5%及GC特征，与真值含义相符；标准答案备注明确要求给出确定性根因，Agent未过度断言；但Agent结果中完全缺失处置建议，未包含定位高占用进程、重启或扩容等关键动作，故建议可用性为false。",
+      "id": "cpu_high-01",
+      "scenario": "cpu_high",
+      "expect_verified": true,
+      "keyword_hit": false,
+      "tokens": 17600
+    },
+    {
+      "root_cause_correct": true,
+      "evidence_covered": true,
+      "suggestion_usable": false,
+      "overclaim": false,
+      "reason": "根因含义相符（均明确指出CPU使用率过高及资源/进程占用导致）；关键证据已覆盖（准确引用CPU均值88.5%并关联GC压力）；但Agent输出中完全缺失处置建议部分，未包含‘定位高占用进程’与‘重启或扩容实例’等关键动作，故建议可用性为false；真值Note明确要求给出确定性根因，不存在过度断言。",
+      "id": "cpu_high-02",
+      "scenario": "cpu_high",
+      "expect_verified": true,
+      "keyword_hit": false,
+      "tokens": 13970
+    },
+    {
+      "root_cause_correct": true,
+      "evidence_covered": true,
+      "suggestion_usable": false,
+      "overclaim": false,
+      "reason": "根因含义相符，Agent明确指出内存使用率持续高位及缓存/连接池泄漏，与真值一致。关键证据已覆盖核心指标（内存avg 88.5%），虽未提及OOM日志但主要信号已匹配。处置建议完全缺失，未包含堆转储分析或调整JVM/扩容等关键动作。真值无降级要求，Agent基于一致指标给出确定性分析合理，无过度断言。",
+      "id": "memory_high-01",
+      "scenario": "memory_high",
+      "expect_verified": true,
+      "keyword_hit": false,
+      "tokens": 13387
+    },
+    {
+      "root_cause_correct": true,
+      "evidence_covered": true,
+      "suggestion_usable": false,
+      "overclaim": false,
+      "reason": "根因含义相符（Java堆内存溢出/OOM属于内存不足或泄漏的具体表现）；关键证据完整覆盖（明确引用了内存Avg约88.5%及日志中的OutOfMemoryError）；但Agent输出中完全缺失处置建议，未包含‘堆转储分析’或‘调整JVM参数/扩容’等关键动作；标准答案未标注‘应降级’，故不构成过度断言。",
+      "id": "memory_high-02",
+      "scenario": "memory_high",
+      "expect_verified": true,
+      "keyword_hit": false,
+      "tokens": 16662
+    },
+    {
+      "root_cause_correct": false,
+      "evidence_covered": true,
+      "suggestion_usable": false,
+      "overclaim": false,
+      "reason": "根因方向不符：标准答案明确指向‘磁盘空间不足’，Agent却归因为‘应用内存泄漏/死循环导致CPU/内存飙升进而引发磁盘I/O阻塞’，因果链条偏离且引入了未验证的应用层假设。关键证据已覆盖：Agent提及了磁盘使用率告警及日志堆积问题，与真值证据指向一致。建议不可用：Agent输出中完全缺失具体的处置建议或清理/扩容动",
+      "id": "disk_high-01",
+      "scenario": "disk_high",
+      "expect_verified": true,
+      "keyword_hit": false,
+      "tokens": 17474
+    },
+    {
+      "root_cause_correct": true,
+      "evidence_covered": true,
+      "suggestion_usable": false,
+      "overclaim": false,
+      "reason": "根因含义相符（均为磁盘空间不足/耗尽）；关键证据已覆盖（明确引用了“No space left on device”错误及磁盘满载触发HighDiskUsage告警的事实）；但Agent输出中完全缺失处置建议环节，未包含“清理日志/临时文件”或“扩容”等标准答案要求的关键动作，故建议可用性为false；标准答案未标注需",
+      "id": "disk_high-02",
+      "scenario": "disk_high",
+      "expect_verified": true,
+      "keyword_hit": false,
+      "tokens": 29414
+    },
+    {
+      "root_cause_correct": false,
+      "evidence_covered": false,
+      "suggestion_usable": false,
+      "overclaim": false,
+      "reason": "Agent返回‘结构化诊断生成失败’，未输出任何有效结论。根因与标准答案的‘服务不可用/依赖连接失败’完全不符；证据覆盖率为0%，未引用任何关键日志或健康检查信息；无处置建议。因Agent未对业务故障做出确定性断言，故overclaim为false。",
+      "id": "service_unavailable-01",
+      "scenario": "service_unavailable",
+      "expect_verified": true,
+      "keyword_hit": false,
+      "tokens": 32396
+    },
+    {
+      "root_cause_correct": true,
+      "evidence_covered": true,
+      "suggestion_usable": false,
+      "overclaim": false,
+      "reason": "根因明确指出MySQL连接失败导致服务不可用，与标准答案“依赖或连接失败”、“服务不可用”语义一致；证据准确引用了“connection refused”及健康检查返回503，完全覆盖真值关键证据；但Agent结果文本中未包含任何处置建议，无法满足关键动作要求；真值无降级提示且Agent结论基于明确日志证据，不存在过度",
+      "id": "service_unavailable-02",
+      "scenario": "service_unavailable",
+      "expect_verified": true,
+      "keyword_hit": true,
+      "tokens": 15105
+    },
+    {
+      "root_cause_correct": false,
+      "evidence_covered": false,
+      "suggestion_usable": false,
+      "overclaim": false,
+      "reason": "Agent返回结果为‘结构化诊断生成失败’，未提供任何有效根因分析，关键证据覆盖率为0%，处置建议为空。与标准答案的根因方向完全不符，且因未输出确定性结论，不构成过度断言。",
+      "id": "slow_response-01",
+      "scenario": "slow_response",
+      "expect_verified": true,
+      "keyword_hit": false,
+      "tokens": 31124
+    },
+    {
+      "root_cause_correct": true,
+      "evidence_covered": true,
+      "suggestion_usable": false,
+      "overclaim": false,
+      "reason": "根因含义相符（均定位到慢查询导致响应延迟）；关键证据已覆盖（明确引用了日志中4.2s慢查询记录）；Agent结果仅包含诊断分析，未提供任何处置建议，故建议不可用；标准答案无降级标注且Agent结论有日志与监控指标充分支撑，不存在过度断言。",
+      "id": "slow_response-02",
+      "scenario": "slow_response",
+      "expect_verified": true,
+      "keyword_hit": false,
+      "tokens": 16313
+    },
+    {
+      "root_cause_correct": false,
+      "evidence_covered": false,
+      "suggestion_usable": false,
+      "overclaim": true,
+      "reason": "场景标注为no_evidence且标准答案明确指出‘无告警无日志，正确行为是不给出确定性根因’。Agent却虚构了具体的活动告警并给出确定性根因结论，与真值方向完全相反；真值关键证据为空，Agent未提供有效依据；缺失标准答案要求的‘建议人工复核’处置动作；在真值要求降级的情况下仍做出确定性断言，判定为过度断言。",
+      "id": "no_evidence-01",
+      "scenario": "no_evidence",
+      "expect_verified": false,
+      "keyword_hit": null,
+      "tokens": 12313
+    },
+    {
+      "root_cause_correct": false,
+      "evidence_covered": false,
+      "suggestion_usable": false,
+      "overclaim": true,
+      "reason": "标准答案明确标注场景为no_evidence且expect_no_firm_root_cause为true，要求不给出确定性根因。Agent却虚构了具体告警并直接给出确定性根因结论，与真值方向明显不符；真值无关键证据，Agent未覆盖有效证据；诊断结果中未包含‘建议人工复核’等关键处置动作；在无证据场景下仍做出确定性断",
+      "id": "no_evidence-02",
+      "scenario": "no_evidence",
+      "expect_verified": false,
+      "keyword_hit": null,
+      "tokens": 11850
+    }
+  ]
+}

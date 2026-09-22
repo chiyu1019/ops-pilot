@@ -1,0 +1,20 @@
+{
+  "description": "高难度 RAG 评测集：①改写型（避开关键词）②易混淆型（强干扰文档竞争）③多跳型 ④知识库外问题（测拒答）",
+  "version": "1.0",
+  "questions": [
+    { "id": "h-rewrite-01", "category": "rewrite", "question": "机器负载突然飙升，怎么定位是哪个程序吃掉了资源？", "expected_files": ["cpu_high_usage.md"] },
+    { "id": "h-rewrite-02", "category": "rewrite", "question": "接口变慢、请求排队，应该从哪开始排查？", "expected_files": ["slow_response.md"] },
+    { "id": "h-rewrite-03", "category": "rewrite", "question": "服务器盘快满了，先做哪几步处理？", "expected_files": ["disk_high_usage.md"] },
+    { "id": "h-rewrite-04", "category": "rewrite", "question": "服务端口不通、进程还在但请求全部失败，怎么处理？", "expected_files": ["service_unavailable.md"] },
+    { "id": "h-rewrite-05", "category": "rewrite", "question": "内存一直上涨不回落，怀疑泄漏，怎么确认？", "expected_files": ["memory_high_usage.md"] },
+    { "id": "h-confuse-01", "category": "confusable", "question": "HighCPUUsage 告警的处置步骤是什么？", "expected_files": ["cpu_high_usage.md"] },
+    { "id": "h-confuse-02", "category": "confusable", "question": "HighMemoryUsage 内存告警的排查流程", "expected_files": ["memory_high_usage.md"] },
+    { "id": "h-confuse-03", "category": "confusable", "question": "ServiceUnavailable 服务不可用告警的应急流程", "expected_files": ["service_unavailable.md"] },
+    { "id": "h-confuse-04", "category": "confusable", "question": "HighDiskUsage 磁盘告警的处理步骤", "expected_files": ["disk_high_usage.md"] },
+    { "id": "h-confuse-05", "category": "confusable", "question": "SlowResponse 响应时间过长告警的排查步骤", "expected_files": ["slow_response.md"] },
+    { "id": "h-multihop-01", "category": "multihop", "question": "CPU 告警同时伴随接口变慢，这两类问题分别应该查什么？", "expected_files": ["cpu_high_usage.md", "slow_response.md"] },
+    { "id": "h-nokb-01", "category": "no_answer", "question": "如何配置 Kubernetes HPA 自动扩缩容策略？", "expect_no_answer": true, "expected_files": [] },
+    { "id": "h-nokb-02", "category": "no_answer", "question": "Flink 作业反压（backpressure）应该怎么排查？", "expect_no_answer": true, "expected_files": [] },
+    { "id": "h-nokb-03", "category": "no_answer", "question": "如何选择向量数据库的索引类型与量化方式？", "expect_no_answer": true, "expected_files": [] }
+  ]
+}
