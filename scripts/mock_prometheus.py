@@ -24,10 +24,15 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 _EXTRA_ALERTS: list[dict] = []
 
 
+# 固定基准时间：真实 Prometheus 的 activeAt 在告警持续期间不变，
+# 若每次请求都按 now 计算会导致告警指纹变化、去重失效
+_BASE_TIME = datetime.now(timezone.utc)
+
+
 def _rfc3339(offset_minutes: int) -> str:
-    """返回 offset_minutes 分钟前的 RFC3339 时间（Prometheus activeAt 格式）。"""
-    now = datetime.now(timezone.utc) - timedelta(minutes=offset_minutes)
-    return now.strftime("%Y-%m-%dT%H:%M:%SZ")
+    """返回相对进程启动时刻 offset_minutes 前的 RFC3339 时间（告警期间保持稳定）。"""
+    ts = _BASE_TIME - timedelta(minutes=offset_minutes)
+    return ts.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def build_alerts_payload() -> dict:

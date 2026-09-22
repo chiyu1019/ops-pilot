@@ -62,6 +62,21 @@ def _now() -> str:
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
+def _normalize_active_at(value: str) -> str:
+    """把 activeAt 截断到小时，容忍数据源的时间抖动。
+
+    - 真实 Prometheus：activeAt 在告警期间固定，截断无影响
+    - 时间有抖动的数据源（如 mock）：同一小时内的抖动不会再被当成新告警
+    - 告警真正恢复后再次触发，由 mark_resolved() 清理指纹来保证能重新诊断
+    """
+    if not value:
+        return ""
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00")).strftime("%Y-%m-%dT%H")
+    except Exception:
+        return value[:13]
+
+
 def alert_fingerprint(alert: dict) -> str:
     """告警指纹 = labels + activeAt（同一次持续告警指纹不变，恢复后再次触发会产生新指纹）。
 
@@ -69,7 +84,7 @@ def alert_fingerprint(alert: dict) -> str:
     避免把同一次未恢复的告警当成新告警反复诊断。
     """
     labels = alert.get("labels") or {}
-    active_at = str(alert.get("activeAt") or alert.get("active_at") or "")
+    active_at = _normalize_active_at(str(alert.get("activeAt") or alert.get("active_at") or ""))
     payload = {"labels": labels, "active_at": active_at}
     return hashlib.sha1(
         json.dumps(payload, sort_keys=True, ensure_ascii=False).encode("utf-8")
