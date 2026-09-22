@@ -233,11 +233,13 @@ async def poll_prometheus_loop() -> None:
                 for alert in alerts:
                     if not isinstance(alert, dict):
                         continue
+                    state = str(alert.get("state") or "").lower()
                     if _is_firing(alert):
                         active_fps.add(alert_fingerprint(alert))
                         await consume_alert(alert)
-                    else:  # resolved / inactive
+                    elif state in ("resolved", "inactive"):
                         mark_resolved(alert)
+                    # pending 等中间态：既不触发也不清理（避免重复刷 resolved 事件）
 
                 # 「从活跃列表消失」= 已恢复：清理去重状态，避免影响下次真实触发
                 for fp in list(_seen_active_by_poll - active_fps):
