@@ -93,7 +93,11 @@ class Settings(BaseSettings):
     # 自动响应（实时告警接入）
     auto_response_enabled: bool = True
     alert_poll_interval: int = 30       # 轮询 Prometheus 告警间隔（秒）
-    alert_cooldown_seconds: int = 900   # 同一告警去重冷却时间（秒）
+    alert_cooldown_seconds: int = 900   # 冷却模式下的去重窗口（秒）
+    # 告警去重模式：
+    #   once_per_incident（默认）—— 同一次告警只诊断/通知一次，直到恢复(resolved)后才允许再次触发
+    #   cooldown           —— 旧行为：冷却窗口过后，持续未恢复的告警会再次触发
+    alert_dedup_mode: str = "once_per_incident"
 
     # 闭环沉淀（诊断结果回写知识库）
     knowledge_distill_enabled: bool = True

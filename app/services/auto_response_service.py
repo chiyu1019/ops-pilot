@@ -51,6 +51,7 @@ def publish(event: dict) -> None:
 # ---------- 告警事件存储（进程内，重启清空；如需持久化可扩展 Redis） ----------
 _events: Deque[dict] = deque(maxlen=200)
 _handled: Dict[str, float] = {}
+_seen_active_by_poll: set = set()
 
 
 def get_events() -> List[dict]:
@@ -62,16 +63,49 @@ def _now() -> str:
 
 
 def alert_fingerprint(alert: dict) -> str:
-    """告警指纹 = labels 的规范化 JSON（与 Prometheus 语义一致）。"""
+    """告警指纹 = labels + activeAt（同一次持续告警指纹不变，恢复后再次触发会产生新指纹）。
+
+    activeAt 在告警持续期间由 Prometheus 保持不变，因此可作为"事件标识"，
+    避免把同一次未恢复的告警当成新告警反复诊断。
+    """
     labels = alert.get("labels") or {}
+    active_at = str(alert.get("activeAt") or alert.get("active_at") or "")
+    payload = {"labels": labels, "active_at": active_at}
     return hashlib.sha1(
-        json.dumps(labels, sort_keys=True, ensure_ascii=False).encode("utf-8")
+        json.dumps(payload, sort_keys=True, ensure_ascii=False).encode("utf-8")
     ).hexdigest()
 
 
-def _in_cooldown(fingerprint: str) -> bool:
+def _should_skip(fingerprint: str) -> bool:
+    """是否需要跳过该告警（去重判定）
+
+    - once_per_incident：该事件已处理过就跳过，直到 resolved 清理（默认，避免反复通知）
+    - cooldown：旧行为，冷却窗口内跳过，窗口过后可再次触发
+    """
     last = _handled.get(fingerprint)
-    return last is not None and (time.time() - last) < config.alert_cooldown_seconds
+    if last is None:
+        return False
+    if str(getattr(config, "alert_dedup_mode", "once_per_incident")).lower() == "cooldown":
+        return (time.time() - last) < config.alert_cooldown_seconds
+    return True
+
+
+def mark_resolved(alert: dict) -> bool:
+    """告警恢复：清理去重状态，使该告警下次触发时能重新诊断。"""
+    fp = alert_fingerprint(alert)
+    removed = _handled.pop(fp, None) is not None
+    labels = alert.get("labels") or {}
+    _record_event(
+        {
+            "type": "alert_resolved",
+            "alertname": labels.get("alertname", ""),
+            "instance": labels.get("instance", ""),
+            "time": _now(),
+        }
+    )
+    if removed:
+        logger.info(f"告警已恢复，清理去重状态: {fp[:12]}")
+    return removed
 
 
 def _is_firing(alert: dict) -> bool:
@@ -88,8 +122,10 @@ async def consume_alert(alert: dict) -> bool:
     """去重 + 触发自动诊断。返回是否触发。"""
     try:
         fp = alert_fingerprint(alert)
-        if _in_cooldown(fp):
-            logger.info(f"告警在冷却期内，跳过自动响应: {fp[:12]}")
+        if _should_skip(fp):
+            mode = str(getattr(config, "alert_dedup_mode", "once_per_incident")).lower()
+            reason = "该告警事件已处理过" if mode != "cooldown" else "告警在冷却期内"
+            logger.info(f"{reason}，跳过自动响应: {fp[:12]}")
             return False
         _handled[fp] = time.time()
 
@@ -178,9 +214,22 @@ async def poll_prometheus_loop() -> None:
                 logger.warning(f"轮询告警失败: {err}")
             else:
                 alerts = (body.get("data") or {}).get("alerts") or []
+                active_fps = set()
                 for alert in alerts:
-                    if isinstance(alert, dict) and _is_firing(alert):
+                    if not isinstance(alert, dict):
+                        continue
+                    if _is_firing(alert):
+                        active_fps.add(alert_fingerprint(alert))
                         await consume_alert(alert)
+                    else:  # resolved / inactive
+                        mark_resolved(alert)
+
+                # 「从活跃列表消失」= 已恢复：清理去重状态，避免影响下次真实触发
+                for fp in list(_seen_active_by_poll - active_fps):
+                    _handled.pop(fp, None)
+                    logger.info(f"告警已从活跃列表消失，清理去重状态: {fp[:12]}")
+                _seen_active_by_poll.clear()
+                _seen_active_by_poll.update(active_fps)
         except Exception as e:
             logger.error(f"轮询告警异常: {e}", exc_info=True)
         await asyncio.sleep(config.alert_poll_interval)

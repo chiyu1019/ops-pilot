@@ -29,22 +29,26 @@ async def webhook_alerts(payload: Dict[str, Any]):
 
     received = 0
     triggered = 0
+    resolved = 0
     for alert in raw_alerts:
         if not isinstance(alert, dict):
             continue
         status = str(alert.get("status", "") or group_status).lower()
         if status in ("resolved", "inactive"):
+            # 告警恢复：清理去重状态，使该告警下次触发时能重新诊断
+            ars.mark_resolved(alert)
+            resolved += 1
             continue
         received += 1
         if await ars.consume_alert(alert):
             triggered += 1
 
-    logger.info(f"Webhook 收到告警: {received} 条，触发诊断: {triggered} 条")
+    logger.info(f"Webhook 收到告警: {received} 条，触发诊断: {triggered} 条，恢复: {resolved} 条")
     return JSONResponse(
         {
             "code": 200,
             "message": "success",
-            "data": {"received": received, "triggered": triggered},
+            "data": {"received": received, "triggered": triggered, "resolved": resolved},
         }
     )
 
