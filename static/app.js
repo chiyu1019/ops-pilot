@@ -962,7 +962,7 @@ class OpsPilotApp {
             this.highlightCodeBlocks(messageContent);
         } else {
             // 用户消息或流式消息使用纯文本
-            messageContent.textContent = content;
+            messageContent.innerHTML = this.renderMarkdown(content);
         }
 
         messageContentWrapper.appendChild(messageContent);
@@ -1436,7 +1436,7 @@ class OpsPilotApp {
                 messageContentWrapper.appendChild(messageContent);
             }
             // 流式显示时使用纯文本
-            messageContent.textContent = content;
+            messageContent.innerHTML = this.renderMarkdown(content);
             this.scrollToBottom();
         }
     }
