@@ -27,7 +27,7 @@
 
 展示告警触发、Agent 自动诊断、MCP 工具调用及诊断报告生成的完整流程。
 
-**演示视频：** [点击观看](替换为你上传后生成的视频链接)
+**演示视频：** [点击观看](https://github.com/chiyu1019/ops-pilot/releases/download/v1.0.0/ops.mp4)
 
 ---
 
